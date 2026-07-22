@@ -1,0 +1,225 @@
+# WeStartup — Cursor Project Rules
+
+## Product
+
+**WeStartup** — AI-powered platform where founders pressure-test startup ideas with a
+challenging AI advisor, then leave with investor-ready documents as an interactive
+analytics dashboard.
+
+Tagline: *From idea to investor-ready in under an hour*
+
+The AI advisor is **not a yes-man**: challenge weak assumptions, demand evidence,
+probe viability/marketability, prepare founders for real investor meetings.
+
+---
+
+## Stack (locked)
+
+| Layer | Choice |
+|-------|--------|
+| Framework | Next.js App Router + TypeScript + Tailwind CSS v4 |
+| Components | shadcn/ui (customized — never ship default slate/zinc theme) |
+| Auth + DB | Supabase (email/password + magic link + Google OAuth, Postgres) |
+| Payments | **Razorpay only** (UPI, cards, netbanking, wallets) — no Stripe |
+| AI | Vercel AI SDK; Gemini primary, Groq fallback via config |
+| Charts | Recharts (structured JSON from model → client render) |
+| Package manager | npm |
+| Currency | INR (₹) for all pricing UI |
+
+Backend logic lives in Next.js Route Handlers / Server Actions only.
+
+---
+
+## Build discipline
+
+1. Build incrementally. Do **not** scaffold entire features at once.
+2. Before each feature/step: ask clarifying questions; wait for answers or
+   “proceed with best judgment.”
+3. After clarifications: implement **only** that step. Preserve existing behavior.
+4. Explain architectural decisions before major changes.
+5. Production-ready TypeScript, strong typing, clear folder structure.
+
+### Skill invocation (per feature, in order)
+
+| Order | Skill | When |
+|-------|-------|------|
+| 1 | **refero** (`.cursor/skills/refero-design`) | Layout, IA, structure |
+| 2 | **leon** (taste-skill under `.agents/skills`) | Color, type, spacing, design language |
+| 3 | **animation** (emilkowalski skills) | Motion, transitions, micro-interactions |
+
+Do **not** invoke all skills at project start — only when that concern is active.
+
+---
+
+## Visual identity — “Signal Teal” (hybrid, locked)
+
+Refero-grounded: neutrals-first, no indigo/violet AI default, no cream+terracotta
+editorial cliché. Hybrid: **light marketing** + **denser dark app chrome**.
+
+### Palette
+
+| Token | Hex | Role |
+|-------|-----|------|
+| `--canvas` | `#F5F7F9` | Marketing / light surfaces |
+| `--ink` | `#0B1220` | Primary text (light), app chrome base |
+| `--ink-elevated` | `#141C2B` | App elevated panels |
+| `--ink-muted` | `#8B95A8` | Secondary text on dark |
+| `--border-light` | `#D8DEE8` | Light borders |
+| `--border-dark` | `#243044` | Dark borders |
+| `--accent` | `#0F766E` | CTA, focus, chart primary (teal) |
+| `--accent-hover` | `#0D9488` | Hover / active accent |
+| `--accent-subtle` | `#CCFBF1` | Light accent wash |
+| `--challenge` | `#B45309` | Advisor pushback / warnings (not celebration) |
+| `--success` | `#047857` | Positive / confirmed |
+| `--danger` | `#B91C1C` | Errors / destructive |
+
+### Typography
+
+- **UI + body:** Plus Jakarta Sans (`--font-sans`)
+- **Marketing display / brand moments only:** Newsreader (`--font-display`)
+- Do **not** use Inter, Roboto, Arial, or system-ui as primary brand fonts.
+- Scale: Minor Third (~1.2). Denser in app chrome; more open on marketing.
+
+### Layout / craft rules
+
+- Brand “WeStartup” is hero-level on marketing — not nav-only.
+- Default: **no cards**. Cards only for interactive containers.
+- Prefer borders + spacing over multi-layer shadows / glow.
+- Radius: 8–12px. No rounded-full pill clusters.
+- Marketing first viewport: brand, one headline, one supporting line, one CTA group,
+  one dominant visual — nothing else.
+- Copy tone: restrained, professional; no emoji / exclamation-driven microcopy.
+
+### Theme application
+
+- `(marketing)`, `(auth)`, `(onboarding)`: light canvas + ink text.
+- `(app)` chat/dashboard shell: dark ink chrome; charts/accents use teal.
+
+---
+
+## File structure
+
+```
+app/
+  layout.tsx                 # Root: fonts, metadata, globals
+  globals.css                # Design tokens (Signal Teal)
+  (marketing)/               # Public conversion surfaces
+    layout.tsx
+    page.tsx                 # Landing
+  (auth)/                    # Unauthenticated auth flows
+    layout.tsx
+    login/page.tsx
+    signup/page.tsx
+    callback/route.ts        # OAuth / magic-link callback
+  (onboarding)/              # first_login === true only
+    layout.tsx
+    onboarding/page.tsx      # /onboarding
+  (app)/                     # Authenticated product shell
+    layout.tsx
+    chat/page.tsx            # Primary home post-onboarding
+    dashboard/page.tsx
+    billing/page.tsx
+  api/
+    chat/route.ts
+    billing/…                # Razorpay checkout, verify, portal
+    webhooks/razorpay/route.ts
+
+lib/
+  ai/
+    provider.ts              # AI_PROVIDER / AI_MODEL swap (Gemini | Groq)
+    expert-context.ts        # EXPERT_CONTEXT insertion point
+    prompts.ts               # System prompt assembly
+  supabase/
+    client.ts
+    server.ts
+    middleware.ts
+  razorpay/
+    client.ts
+    plans.ts                 # Placeholder: starter | growth | scale
+  types/
+    onboarding.ts
+    artifacts.ts
+    billing.ts
+
+components/
+  ui/                        # shadcn primitives (themed)
+  marketing/
+  onboarding/
+  chat/
+  dashboard/
+  billing/
+
+supabase/
+  migrations/                # SQL migrations
+
+middleware.ts                # Auth + first_login + subscription gates
+```
+
+### Routing conventions
+
+- Post-onboarding home: **`/(app)/chat`** (dashboard is adjacent, live-updating).
+- `first_login === true` → force `/onboarding` before chat/dashboard.
+- Subsequent logins → chat.
+- Premium features: server-side subscription checks + middleware — never client-only.
+
+---
+
+## AI layer
+
+```ts
+// Env (see .env.example)
+AI_PROVIDER=gemini | groq
+AI_MODEL=gemini-2.5-flash   // or groq model id
+GEMINI_API_KEY=
+GROQ_API_KEY=
+```
+
+- Use Vercel AI SDK only. Provider selection in `lib/ai/provider.ts`.
+- Swapping providers must not require changes outside `provider.ts` + env.
+- System prompt = advisor persona + onboarding JSON + `EXPERT_CONTEXT` + history.
+- `EXPERT_CONTEXT` lives in `lib/ai/expert-context.ts` — placeholder topics
+  (business-model, traction-signals, deal-structure, red-flags). Model reasons
+  from this material in its own words; never quotes it verbatim to the user.
+
+---
+
+## Auth & data
+
+- Supabase Auth: email/password, magic link, Google OAuth.
+- Profiles table includes `first_login: boolean` (true on signup).
+- Onboarding answers: structured JSON keyed by question id.
+- Artifacts: typed JSON (chart-ready), rendered client-side with Recharts.
+
+---
+
+## Billing (Razorpay)
+
+Placeholder plan ids: `starter` | `growth` | `scale` (names/limits TBD).
+
+Implement (scaffold → flesh out in billing step): Checkout, subscription where
+supported, payment verification, secure webhooks, upgrade/downgrade/cancel,
+success/failure handling. Persist status, plan, renewal dates, transaction
+history in Supabase.
+
+---
+
+## Coding standards
+
+- Strict TypeScript; no `any` unless justified with a comment.
+- Prefer Server Components; `"use client"` only when needed.
+- Colocate feature components under `components/<feature>/`.
+- Shared types in `lib/types/`.
+- Env vars: never commit secrets; document in `.env.example`.
+- Do not add markdown docs unless asked.
+
+---
+
+## Incremental build order (confirm before advancing)
+
+1. ✅ `.cursorrules` + scaffold + route groups + tokens
+2. Landing page
+3. Auth + `first_login`
+4. Onboarding (structure → taste → motion)
+5. Chat + onboarding context + placeholder system prompt
+6. Dashboard visual analytics per artifact
+7. Pricing UI + Razorpay scaffold

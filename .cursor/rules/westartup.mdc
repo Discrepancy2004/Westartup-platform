@@ -1,0 +1,19 @@
+---
+description: WeStartup project conventions, Signal Teal identity, stack locks
+globs:
+alwaysApply: true
+---
+
+# WeStartup
+
+Follow root `.cursorrules` as the source of truth for stack, structure, visual identity, and build order.
+
+## Quick locks
+
+- Product: WeStartup — challenging AI advisor → investor-ready analytics dashboard
+- Payments: Razorpay only (INR)
+- AI: Vercel AI SDK — Gemini primary, Groq fallback via `lib/ai/provider.ts`
+- Visual: Signal Teal hybrid (light marketing / dark app chrome)
+- Skills per feature: refero → leon (taste) → animation
+- Post-onboarding home: `/(app)/chat`
+- Incremental builds; ask clarifying questions before each step

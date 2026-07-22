@@ -1,26 +1,106 @@
 @import "tailwindcss";
 
+/*
+  WeStartup — Signal Teal design tokens
+  Theme strategy (design-taste-frontend): CSS variables + html.dark class.
+  Default follows system preference; user toggle persists in localStorage.
+*/
+
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --canvas: #f5f7f9;
+  --surface: #ffffff;
+  --ink: #0b1220;
+  --ink-secondary: #3d4a5c;
+  --ink-tertiary: #6b778c;
+  --border: #d8dee8;
+  --accent: #0f766e;
+  --accent-hover: #0d9488;
+  --accent-subtle: #ccfbf1;
+  --challenge: #b45309;
+  --success: #047857;
+  --danger: #b91c1c;
+
+  --background: var(--canvas);
+  --foreground: var(--ink);
+
+  --radius-sm: 8px;
+  --radius-md: 10px;
+  --radius-lg: 12px;
+}
+
+/* Global dark — driven only by html.dark (theme toggle / system preference) */
+html.dark {
+  --canvas: #0b1220;
+  --surface: #141c2b;
+  --ink: #f5f7f9;
+  --ink-secondary: #c5cdd9;
+  --ink-tertiary: #8b95a8;
+  --border: #243044;
+  --accent: #14b8a6;
+  --accent-hover: #2dd4bf;
+  --accent-subtle: #134e4a;
+  --challenge: #f59e0b;
+  --success: #34d399;
+  --danger: #f87171;
+
+  --background: var(--canvas);
+  --foreground: var(--ink);
 }
 
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
-}
+  --color-canvas: var(--canvas);
+  --color-surface: var(--surface);
+  --color-ink: var(--ink);
+  --color-ink-secondary: var(--ink-secondary);
+  --color-ink-tertiary: var(--ink-tertiary);
+  --color-border: var(--border);
+  --color-accent: var(--accent);
+  --color-accent-hover: var(--accent-hover);
+  --color-accent-subtle: var(--accent-subtle);
+  --color-challenge: var(--challenge);
+  --color-success: var(--success);
+  --color-danger: var(--danger);
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+  --font-sans: var(--font-plus-jakarta);
+  --font-display: var(--font-newsreader);
+  --font-mono: var(--font-geist-mono);
+
+  --radius-sm: var(--radius-sm);
+  --radius-md: var(--radius-md);
+  --radius-lg: var(--radius-lg);
 }
 
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: var(--font-plus-jakarta), ui-sans-serif, sans-serif;
+}
+
+/* Marketing motion — restrained fade + rise */
+@keyframes fade-up {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-fade-up {
+  animation: fade-up 0.7s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.animate-fade-up-delay {
+  animation: fade-up 0.85s cubic-bezier(0.22, 1, 0.36, 1) 0.15s both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-fade-up,
+  .animate-fade-up-delay {
+    animation: none;
+  }
 }
