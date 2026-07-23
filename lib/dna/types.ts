@@ -1,4 +1,5 @@
 import { z } from "zod";
+import type { ArtifactKind } from "@/lib/types/artifacts";
 
 export const STARTUP_THEME_IDS = [
   "health",
@@ -22,6 +23,15 @@ export const startupDnaSchema = z.object({
   keywordsFound: z.array(z.string()).default([]),
   scores: z.record(z.string(), z.number()).optional(),
   detectedAt: z.string(),
+  companionPersona: z
+    .object({
+      gender: z.enum(["boy", "girl"]),
+      id: z.string(),
+      label: z.string(),
+      source: z.enum(["kit", "learned"]),
+      learnedAt: z.string().optional(),
+    })
+    .optional(),
 });
 
 export type StartupDna = z.infer<typeof startupDnaSchema>;
@@ -37,10 +47,17 @@ export type ThemeAccent = {
   gradientTo: string;
 };
 
+export type DashboardSectionId =
+  | "story"
+  | "market"
+  | "economics"
+  | "financials"
+  | "traction"
+  | "team";
+
 export type ThemeExperience = {
   id: StartupThemeId;
   label: string;
-  /** Short industry phrase used in welcome lines — never say "we detected". */
   industryPhrase: string;
   welcomeLine: string;
   chatTitle: string;
@@ -58,20 +75,13 @@ export type ThemeExperience = {
   bootstrapRunning: string;
   bootstrapDone: string;
   suggestions: string[];
-  widgets: { title: string; hint: string }[];
-  kindLabels: Partial<
-    Record<
-      | "idea-brief"
-      | "financial-projections"
-      | "revenue-model"
-      | "market-sizing"
-      | "team-overview"
-      | "deal-structure",
-      string
-    >
-  >;
+  /** Four KPI strip slots — titles/hints; values come from artifacts. */
+  widgets: { title: string; hint: string; slot: KpiSlot }[];
+  sectionTitles: Record<DashboardSectionId, string>;
+  kindLabels: Partial<Record<ArtifactKind, string>>;
   icons: { spark: string; primary: string; secondary: string };
   accent: ThemeAccent;
-  /** Hidden block injected into AI system prompt — never shown in UI. */
   aiFocus: string;
 };
+
+export type KpiSlot = "som" | "y1Revenue" | "ltvCac" | "runway";

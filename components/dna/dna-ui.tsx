@@ -29,42 +29,11 @@ export function DnaSuggestions({
   );
 }
 
-/** Soft industry widgets — visual personalization without redesigning the grid. */
-export function DnaWidgetStrip({ className }: { className?: string }) {
-  const { experience } = useDna();
-
-  return (
-    <div
-      className={cn(
-        "grid gap-3 sm:grid-cols-2 lg:grid-cols-4",
-        className,
-      )}
-    >
-      {experience.widgets.map((w) => (
-        <div
-          key={w.title}
-          className="rounded-[var(--radius-md)] border border-border bg-surface/80 px-3 py-3"
-          style={{
-            backgroundImage: `linear-gradient(135deg, color-mix(in srgb, var(--accent) 12%, transparent), transparent 70%)`,
-          }}
-        >
-          <p className="text-[10px] uppercase tracking-[0.14em] text-ink-tertiary">
-            {w.hint}
-          </p>
-          <p className="mt-1 text-sm font-medium text-ink">{w.title}</p>
-        </div>
-      ))}
-    </div>
-  );
-}
-
 export function DnaWelcome({ className }: { className?: string }) {
   const { experience } = useDna();
   return (
     <div className={cn("space-y-1", className)}>
-      <p className="font-display text-xl text-ink md:text-2xl">
-        Welcome back 👋
-      </p>
+      <p className="font-display text-xl text-ink md:text-2xl">Welcome back</p>
       <p className="text-sm text-ink-secondary">{experience.welcomeLine}</p>
     </div>
   );

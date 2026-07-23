@@ -49,17 +49,36 @@ export function DashboardEmptyState() {
       <p className="font-display text-xl text-ink">
         {experience.icons.primary} {experience.emptyDashboardTitle}
       </p>
-      <p className="mx-auto mt-3 max-w-md text-sm text-ink-secondary">
+      <p className="mx-auto mt-3 max-w-lg text-sm text-ink-secondary">
         {experience.emptyDashboardBody}
       </p>
-      <div className="mt-5 flex flex-wrap items-center justify-center gap-3">
-        <Button type="button" onClick={generate} disabled={loading}>
-          {loading ? "Generating…" : experience.generateCta}
-        </Button>
-        <Link href="/chat" className="text-sm text-accent hover:underline">
-          Back to chat
-        </Link>
-      </div>
+      <p className="mx-auto mt-3 max-w-md text-xs text-ink-tertiary">
+        Includes story, market, competition, unit economics, projections, burn,
+        traction, GTM, milestones, and raise docs.
+      </p>
+      {loading ? (
+        <div className="mx-auto mt-8 max-w-md space-y-3" aria-hidden>
+          {[0, 1, 2].map((i) => (
+            <div
+              key={i}
+              className="h-10 animate-pulse rounded-[var(--radius-md)] bg-border/50"
+              style={{ animationDelay: `${i * 120}ms` }}
+            />
+          ))}
+          <p className="pt-2 text-xs text-ink-tertiary">
+            Generating investor documents…
+          </p>
+        </div>
+      ) : (
+        <div className="mt-5 flex flex-wrap items-center justify-center gap-3">
+          <Button type="button" onClick={generate} disabled={loading}>
+            {experience.generateCta}
+          </Button>
+          <Link href="/chat" className="text-sm text-accent hover:underline">
+            Back to chat
+          </Link>
+        </div>
+      )}
       {error ? <p className="mt-4 text-sm text-danger">{error}</p> : null}
     </div>
   );

@@ -31,6 +31,7 @@ export async function POST(request: Request) {
       summary: artifact.summary ?? null,
       chart_data: artifact.chartData,
       updated_at: new Date().toISOString(),
+      source: "chat" as const,
     }));
 
     let { error } = await supabase.from("artifacts").upsert(rows, {

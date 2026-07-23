@@ -27,8 +27,13 @@ export async function loadStartupDna(): Promise<ResolvedDna> {
       onboarding: profile?.onboarding as OnboardingAnswers | null,
     });
 
-    // Backfill if we have onboarding but no stored DNA yet
-    if (!profile?.startup_dna && profile?.onboarding) {
+    // Backfill if we have onboarding but no stored DNA / companion yet
+    const needsBackfill =
+      !profile?.startup_dna ||
+      !(profile.startup_dna as { companionPersona?: unknown })
+        ?.companionPersona;
+
+    if (needsBackfill && profile?.onboarding) {
       try {
         await supabase
           .from("profiles")

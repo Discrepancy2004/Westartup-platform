@@ -39,7 +39,7 @@ Instead:
 {"reason":"One-sentence reason for the update","artifacts":[{"kind":"idea-brief","title":"...","summary":"...","chartData":{}}]}
 WESTARTUP_UPDATE-->
 
-Allowed kind values: idea-brief, financial-projections, revenue-model, market-sizing, team-overview, deal-structure.
+Allowed kind values: idea-brief, financial-projections, revenue-model, market-sizing, team-overview, deal-structure, unit-economics, traction-kpis, competitive-landscape, gtm-plan, burn-runway, milestones.
 Include only the kinds that should change. chartData must be valid JSON for charts.
 If you are not confident yet, ask another probing question — do not emit the update block.
 

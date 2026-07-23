@@ -1,3 +1,4 @@
+import { resolveCompanionPersona } from "@/lib/companion/resolve";
 import { detectStartupDna } from "@/lib/dna/detect";
 import { getThemeExperience } from "@/lib/dna/catalog";
 import {
@@ -36,6 +37,24 @@ export function resolveDna(options: {
     };
   }
 
+  if (!dna.companionPersona) {
+    dna = {
+      ...dna,
+      companionPersona: resolveCompanionPersona({
+        onboarding: options.onboarding,
+        dna,
+      }),
+    };
+  } else if (options.onboarding?.["about-you"]?.companionGender) {
+    dna = {
+      ...dna,
+      companionPersona: {
+        ...dna.companionPersona,
+        gender: options.onboarding["about-you"].companionGender,
+      },
+    };
+  }
+
   const experience = getThemeExperience(dna.theme);
   const secondaryLabels = dna.secondaryThemes.map(
     (id) => getThemeExperience(id).label,
@@ -61,11 +80,15 @@ export function buildHiddenDnaContext(
   const raising = onboarding?.["deal-structure"]?.currentlyRaising
     ? "raising"
     : (onboarding?.["deal-structure"]?.intent ?? "not raising");
+  const companion = dna.companionPersona
+    ? `${dna.companionPersona.label} (${dna.companionPersona.gender})`
+    : "n/a";
 
   return `
 ## Startup DNA (internal — never mention detection, keywords, or scoring to the founder)
 - Primary theme: ${experience.label}
 - Secondary themes: ${secondary || "none"}
+- Companion persona: ${companion}
 - Confidence: ${Math.round(dna.confidence * 100)}%
 - Business model: ${model}
 - Stage: ${stage}

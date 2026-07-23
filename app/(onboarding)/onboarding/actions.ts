@@ -1,5 +1,6 @@
 "use server";
 
+import { resolveCompanionPersona } from "@/lib/companion/resolve";
 import { detectStartupDna } from "@/lib/dna/detect";
 import { createServiceClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
@@ -24,7 +25,12 @@ export async function completeOnboarding(raw: OnboardingAnswers) {
       return { error: "You must be signed in to finish onboarding." };
     }
 
-    const startupDna = detectStartupDna(parsed.data);
+    const baseDna = detectStartupDna(parsed.data);
+    const companionPersona = resolveCompanionPersona({
+      onboarding: parsed.data,
+      dna: baseDna,
+    });
+    const startupDna = { ...baseDna, companionPersona };
 
     const payload = {
       id: user.id,

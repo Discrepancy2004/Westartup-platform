@@ -20,6 +20,7 @@ export const fundingIntentSchema = z.enum([
 export const onboardingAnswersSchema = z.object({
   "about-you": z.object({
     roleAndBackground: z.string().min(1),
+    companionGender: z.enum(["boy", "girl"]).optional(),
   }),
   idea: z.object({
     description: z.string().min(1),

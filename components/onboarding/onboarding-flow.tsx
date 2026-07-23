@@ -254,7 +254,10 @@ export function OnboardingFlow({ userEmail }: { userEmail?: string | null }) {
   const canContinue = useMemo(() => {
     switch (step.id) {
       case "about-you":
-        return Boolean(answers["about-you"]?.roleAndBackground?.trim());
+        return Boolean(
+          answers["about-you"]?.roleAndBackground?.trim() &&
+            answers["about-you"]?.companionGender,
+        );
       case "idea":
         return Boolean(answers.idea?.description?.trim());
       case "business-specifics":
@@ -409,17 +412,57 @@ export function OnboardingFlow({ userEmail }: { userEmail?: string | null }) {
 
           <div key={step.id} className="animate-fade-up mt-8 space-y-5">
             {step.id === "about-you" ? (
-              <Textarea
-                rows={5}
-                placeholder="I'm a software engineer passionate about helping small businesses grow."
-                value={answers["about-you"]?.roleAndBackground ?? ""}
-                onChange={(e) =>
-                  setAnswers((a) => ({
-                    ...a,
-                    "about-you": { roleAndBackground: e.target.value },
-                  }))
-                }
-              />
+              <div className="space-y-5">
+                <Textarea
+                  rows={5}
+                  placeholder="I'm a software engineer passionate about helping small businesses grow."
+                  value={answers["about-you"]?.roleAndBackground ?? ""}
+                  onChange={(e) =>
+                    setAnswers((a) => ({
+                      ...a,
+                      "about-you": {
+                        roleAndBackground: e.target.value,
+                        companionGender: a["about-you"]?.companionGender,
+                      },
+                    }))
+                  }
+                />
+                <div className="space-y-2">
+                  <p className="text-sm font-medium text-ink">
+                    Your companion should look like
+                  </p>
+                  <div className="flex gap-2">
+                    {(["boy", "girl"] as const).map((g) => {
+                      const selected =
+                        answers["about-you"]?.companionGender === g;
+                      return (
+                        <button
+                          key={g}
+                          type="button"
+                          onClick={() =>
+                            setAnswers((a) => ({
+                              ...a,
+                              "about-you": {
+                                roleAndBackground:
+                                  a["about-you"]?.roleAndBackground ?? "",
+                                companionGender: g,
+                              },
+                            }))
+                          }
+                          className={cn(
+                            "flex-1 rounded-[var(--radius-md)] border px-4 py-3 text-sm font-medium capitalize transition-colors",
+                            selected
+                              ? "border-accent bg-accent-subtle text-ink"
+                              : "border-border bg-surface text-ink-secondary hover:border-ink-tertiary",
+                          )}
+                        >
+                          {g}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              </div>
             ) : null}
 
             {step.id === "idea" ? (
