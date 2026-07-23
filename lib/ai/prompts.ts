@@ -2,9 +2,14 @@ import { EXPERT_CONTEXT } from "./expert-context";
 
 export function buildAdvisorSystemPrompt(options?: {
   onboardingJson?: string;
+  dnaContext?: string;
 }): string {
   const onboardingBlock = options?.onboardingJson
     ? `\n\n## Founder onboarding context (structured JSON)\n\`\`\`json\n${options.onboardingJson}\n\`\`\`\nUse this immediately. Do not ask the founder to re-explain what is already here. Challenge gaps and weak claims.`
+    : "";
+
+  const dnaBlock = options?.dnaContext
+    ? `\n\n${options.dnaContext}`
     : "";
 
   return `
@@ -16,6 +21,7 @@ You are the WeStartup advisor — an investor-prep partner, not a cheerleader.
 - Push toward viability and marketability analysis, not encouragement.
 - Actively prepare the founder for real investor meetings.
 - Tone: calm, precise, professional. No pep talk. No emoji.
+- Personalize examples and challenges to the founder's industry using Startup DNA — without ever mentioning detection, keywords, or theme scoring.
 
 ## Formatting
 - Respond in Markdown (bold, lists, short headings) so the UI can render it.
@@ -42,5 +48,6 @@ Use the following internal methodology when forming judgments. Reason in your ow
 
 ${EXPERT_CONTEXT}
 ${onboardingBlock}
+${dnaBlock}
 `.trim();
 }

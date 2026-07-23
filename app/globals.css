@@ -47,6 +47,32 @@ html.dark {
   --foreground: var(--ink);
 }
 
+/* Startup DNA — subtle accent override (premium dark preserved) */
+html[data-startup-theme]:not([data-startup-theme="general"]) {
+  --accent: var(--dna-accent, var(--accent));
+  --accent-hover: var(--dna-accent-hover, var(--accent-hover));
+  --accent-subtle: var(--dna-accent-subtle, var(--accent-subtle));
+}
+
+html.dark[data-startup-theme]:not([data-startup-theme="general"]) {
+  --accent: var(--dna-accent-dark, var(--accent));
+  --accent-hover: var(--dna-accent-hover-dark, var(--accent-hover));
+  --accent-subtle: var(--dna-accent-subtle-dark, var(--accent-subtle));
+}
+
+.dna-shell {
+  background-image: radial-gradient(
+      1200px 480px at 12% -10%,
+      color-mix(in srgb, var(--dna-gradient-from, var(--accent)) 14%, transparent),
+      transparent 55%
+    ),
+    radial-gradient(
+      900px 420px at 88% 0%,
+      color-mix(in srgb, var(--dna-gradient-to, var(--accent)) 10%, transparent),
+      transparent 50%
+    );
+}
+
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
@@ -98,9 +124,27 @@ body {
   animation: fade-up 0.85s cubic-bezier(0.22, 1, 0.36, 1) 0.15s both;
 }
 
+@keyframes launch-bar {
+  from {
+    width: 0%;
+  }
+  to {
+    width: 100%;
+  }
+}
+
+.animate-launch-bar {
+  animation: launch-bar 2.1s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .animate-fade-up,
   .animate-fade-up-delay {
     animation: none;
+  }
+
+  .animate-launch-bar {
+    animation: none;
+    width: 100%;
   }
 }

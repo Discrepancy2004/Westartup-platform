@@ -2,6 +2,8 @@ import { generateObject } from "ai";
 import { z } from "zod";
 import { buildFallbackArtifacts } from "@/lib/ai/fallback-artifacts";
 import { getLanguageModelResilient } from "@/lib/ai/provider";
+import { detectStartupDna } from "@/lib/dna/detect";
+import { buildHiddenDnaContext } from "@/lib/dna/resolve";
 import type { OnboardingAnswers } from "@/lib/types/onboarding";
 import type { createClient } from "@/lib/supabase/server";
 
@@ -126,6 +128,8 @@ export async function generateBootstrapArtifacts(options: {
 }) {
   const { supabase, userId, conversationId, onboarding } = options;
   const raising = onboarding["deal-structure"]?.currentlyRaising ?? false;
+  const dna = detectStartupDna(onboarding);
+  const dnaContext = buildHiddenDnaContext(dna, onboarding);
 
   // 1) Try AI structured generation
   try {
@@ -138,11 +142,14 @@ export async function generateBootstrapArtifacts(options: {
 Onboarding:
 ${JSON.stringify(onboarding, null, 2)}
 
+${dnaContext}
+
 Rules:
+- Title and summarize artifacts in language natural to this vertical (without mentioning theme detection).
 - Include dealStructure only if currentlyRaising is true (it is ${raising}).
 - Market figures in ₹ Cr unless you set unit otherwise.
 - Revenue stream percents should sum to ~100.
-- advisorOpening: challenge weak spots; end with one probing question.
+- advisorOpening: challenge weak spots for this industry; end with one probing question.
 - Keep JSON compact.`,
     });
 

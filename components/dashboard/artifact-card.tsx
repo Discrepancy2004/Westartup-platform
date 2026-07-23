@@ -12,20 +12,31 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
+import { useDna } from "@/components/dna/dna-provider";
 import type { ArtifactKind, ArtifactRecord } from "@/lib/types/artifacts";
 
-const TEAL = "#14b8a6";
-const TEAL_DIM = "#0d9488";
 const MUTED = "#243044";
 const AMBER = "#f59e0b";
 
+function useChartAccent() {
+  const { experience } = useDna();
+  return {
+    primary: experience.accent.accentDark,
+    secondary: experience.accent.accentHoverDark,
+  };
+}
+
 export function ArtifactCard({ artifact }: { artifact: ArtifactRecord }) {
+  const { experience } = useDna();
+  const label =
+    experience.kindLabels[artifact.kind] ?? kindLabelFallback(artifact.kind);
+
   return (
     <article className="rounded-[var(--radius-lg)] border border-border bg-surface p-5">
       <div className="flex items-start justify-between gap-3">
         <div>
           <p className="text-[10px] uppercase tracking-[0.16em] text-ink-tertiary">
-            {kindLabel(artifact.kind)}
+            {label}
           </p>
           <h2 className="mt-1 font-display text-xl text-ink">{artifact.title}</h2>
         </div>
@@ -42,7 +53,7 @@ export function ArtifactCard({ artifact }: { artifact: ArtifactRecord }) {
   );
 }
 
-function kindLabel(kind: ArtifactKind) {
+function kindLabelFallback(kind: ArtifactKind) {
   switch (kind) {
     case "idea-brief":
       return "Idea brief";
@@ -62,6 +73,7 @@ function kindLabel(kind: ArtifactKind) {
 }
 
 function ArtifactVisual({ kind, data }: { kind: ArtifactKind; data: unknown }) {
+  const { primary: TEAL, secondary: TEAL_DIM } = useChartAccent();
   const d = (data ?? {}) as Record<string, unknown>;
 
   if (kind === "idea-brief") {

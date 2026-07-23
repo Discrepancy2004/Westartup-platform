@@ -7,6 +7,8 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AppHeader } from "@/components/app/app-header";
 import { DashboardUpdateCard } from "@/components/chat/dashboard-update-card";
 import { MarkdownMessage } from "@/components/chat/markdown-message";
+import { useDna } from "@/components/dna/dna-provider";
+import { DnaSuggestions, DnaWelcome } from "@/components/dna/dna-ui";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { extractDashboardUpdate } from "@/lib/chat/dashboard-update";
@@ -18,6 +20,7 @@ export function ChatPanel({
   bootstrap?: boolean;
   initialMessages?: { id: string; role: "user" | "assistant"; content: string }[];
 }) {
+  const { experience } = useDna();
   const [input, setInput] = useState("");
   const [bootStatus, setBootStatus] = useState<
     "idle" | "running" | "done" | "error"
@@ -57,13 +60,23 @@ export function ChatPanel({
             : "/api/onboarding/bootstrap",
           { method: "POST", signal: controller.signal },
         );
-        const data = (await res.json()) as {
+        const raw = await res.text();
+        let data: {
           ok?: boolean;
           error?: string;
           hint?: string;
           advisorOpening?: string | null;
           source?: string;
-        };
+        } = {};
+        try {
+          data = raw ? (JSON.parse(raw) as typeof data) : {};
+        } catch {
+          throw new Error(
+            res.status === 404
+              ? "Document API not found. Restart the dev server (npm run dev) and try again."
+              : `Document generation failed (HTTP ${res.status}). Check the terminal for details.`,
+          );
+        }
         if (!res.ok) {
           throw new Error(
             [data.error, data.hint].filter(Boolean).join(" — ") ||
@@ -97,7 +110,7 @@ export function ChatPanel({
         const message =
           err instanceof Error
             ? err.name === "AbortError"
-              ? "Document generation timed out. Open Dashboard and click Generate from onboarding."
+              ? `Document generation timed out. Open Dashboard and click ${experience.generateCta}.`
               : err.message
             : "Bootstrap failed";
         setBootError(message);
@@ -106,7 +119,7 @@ export function ChatPanel({
         window.clearTimeout(timeout);
       }
     },
-    [clearError, setMessages],
+    [clearError, experience.generateCta, setMessages],
   );
 
   useEffect(() => {
@@ -120,21 +133,24 @@ export function ChatPanel({
   }, [messages, status, bootStatus]);
 
   const busy = status === "submitted" || status === "streaming";
+  const showEmpty = messages.length === 0 && bootStatus !== "running";
 
   return (
     <div className="flex h-[100svh] flex-col">
       <AppHeader active="chat" />
 
       <div className="mx-auto flex w-full max-w-3xl flex-1 flex-col gap-4 overflow-y-auto px-4 py-6">
+        {bootStatus !== "running" ? <DnaWelcome /> : null}
+
         {bootStatus === "running" ? (
           <div className="rounded-[var(--radius-md)] border border-border bg-surface px-4 py-3 text-sm text-ink-secondary">
-            Building your investor documents…
+            {experience.bootstrapRunning}
           </div>
         ) : null}
 
         {bootStatus === "done" ? (
           <div className="rounded-[var(--radius-md)] border border-accent/30 bg-accent-subtle px-4 py-3 text-sm text-ink">
-            Documents ready.{" "}
+            {experience.bootstrapDone}{" "}
             <Link href="/dashboard" className="font-medium text-accent underline">
               Open dashboard
             </Link>
@@ -153,7 +169,7 @@ export function ChatPanel({
               className="font-medium text-accent underline"
               onClick={() => void runBootstrap(true)}
             >
-              Generate documents
+              {experience.generateCta}
             </button>
           </div>
         ) : null}
@@ -174,6 +190,24 @@ export function ChatPanel({
                 Go to dashboard
               </Link>
             </div>
+          </div>
+        ) : null}
+
+        {showEmpty ? (
+          <div className="rounded-[var(--radius-lg)] border border-dashed border-border px-5 py-8">
+            <p className="font-display text-xl text-ink">
+              {experience.icons.primary} {experience.emptyChatTitle}
+            </p>
+            <p className="mt-2 text-sm text-ink-secondary">
+              {experience.emptyChatBody}
+            </p>
+            <DnaSuggestions
+              className="mt-5"
+              onPick={(text) => {
+                clearError();
+                void sendMessage({ text });
+              }}
+            />
           </div>
         ) : null}
 
@@ -213,7 +247,7 @@ export function ChatPanel({
               className="mr-auto max-w-[90%] space-y-1 text-sm leading-relaxed"
             >
               <p className="text-[10px] uppercase tracking-[0.14em] text-accent">
-                Advisor
+                {experience.advisorLabel}
               </p>
               {visibleText ? <MarkdownMessage content={visibleText} /> : null}
               {proposal ? <DashboardUpdateCard proposal={proposal} /> : null}
@@ -222,7 +256,9 @@ export function ChatPanel({
         })}
 
         {busy ? (
-          <p className="text-xs text-ink-tertiary">Advisor is thinking…</p>
+          <p className="text-xs text-ink-tertiary">
+            {experience.advisorLabel} is thinking…
+          </p>
         ) : null}
         {error ? (
           <p className="text-sm text-danger">
@@ -243,28 +279,38 @@ export function ChatPanel({
           void sendMessage({ text: value });
         }}
       >
-        <div className="mx-auto flex w-full max-w-3xl gap-3">
-          <Textarea
-            rows={2}
-            value={input}
-            onChange={(e) => setInput(e.target.value)}
-            placeholder="Answer the challenge — or push back with evidence…"
-            disabled={bootStatus === "running"}
-            className="min-h-[52px] resize-none bg-surface"
-            onKeyDown={(e) => {
-              if (e.key === "Enter" && !e.shiftKey) {
-                e.preventDefault();
-                e.currentTarget.form?.requestSubmit();
-              }
-            }}
-          />
-          <Button
-            type="submit"
-            disabled={busy || !input.trim() || bootStatus === "running"}
-            className="self-end"
-          >
-            Send
-          </Button>
+        <div className="mx-auto w-full max-w-3xl space-y-3">
+          {messages.length > 0 && !busy && bootStatus !== "running" ? (
+            <DnaSuggestions
+              onPick={(text) => {
+                clearError();
+                void sendMessage({ text });
+              }}
+            />
+          ) : null}
+          <div className="flex gap-3">
+            <Textarea
+              rows={2}
+              value={input}
+              onChange={(e) => setInput(e.target.value)}
+              placeholder={experience.chatPlaceholder}
+              disabled={bootStatus === "running"}
+              className="min-h-[52px] resize-none bg-surface"
+              onKeyDown={(e) => {
+                if (e.key === "Enter" && !e.shiftKey) {
+                  e.preventDefault();
+                  e.currentTarget.form?.requestSubmit();
+                }
+              }}
+            />
+            <Button
+              type="submit"
+              disabled={busy || !input.trim() || bootStatus === "running"}
+              className="self-end"
+            >
+              Send
+            </Button>
+          </div>
         </div>
       </form>
     </div>
