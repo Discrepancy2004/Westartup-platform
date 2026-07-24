@@ -11,6 +11,12 @@ import { createClient } from "@/lib/supabase/client";
 import { isSupabaseConfigured } from "@/lib/utils";
 
 type Mode = "password" | "magic";
+type Pending =
+  | null
+  | "logging-in"
+  | "creating-account"
+  | "sending-magic"
+  | "google";
 
 export function AuthForm({ variant }: { variant: "login" | "signup" }) {
   const router = useRouter();
@@ -27,7 +33,7 @@ export function AuthForm({ variant }: { variant: "login" | "signup" }) {
       : null,
   );
   const [message, setMessage] = useState<string | null>(null);
-  const [loading, setLoading] = useState(false);
+  const [pending, setPending] = useState<Pending>(null);
 
   if (!isSupabaseConfigured()) {
     return (
@@ -65,12 +71,12 @@ export function AuthForm({ variant }: { variant: "login" | "signup" }) {
     e.preventDefault();
     setError(null);
     setMessage(null);
-    setLoading(true);
 
     try {
       const supabase = createClient();
 
       if (mode === "magic") {
+        setPending("sending-magic");
         const { error: magicError } = await supabase.auth.signInWithOtp({
           email,
           options: {
@@ -79,10 +85,12 @@ export function AuthForm({ variant }: { variant: "login" | "signup" }) {
         });
         if (magicError) throw magicError;
         setMessage("Check your email for the magic link.");
+        setPending(null);
         return;
       }
 
       if (variant === "signup") {
+        setPending("creating-account");
         const { data, error: signUpError } = await supabase.auth.signUp({
           email,
           password,
@@ -94,6 +102,7 @@ export function AuthForm({ variant }: { variant: "login" | "signup" }) {
 
         // Email confirmation disabled → session present → continue
         if (data.session) {
+          setPending("logging-in");
           await finishAuth();
           return;
         }
@@ -103,6 +112,7 @@ export function AuthForm({ variant }: { variant: "login" | "signup" }) {
           await supabase.auth.signInWithPassword({ email, password });
 
         if (!signInError && signedIn.session) {
+          setPending("logging-in");
           await finishAuth();
           return;
         }
@@ -110,26 +120,28 @@ export function AuthForm({ variant }: { variant: "login" | "signup" }) {
         setMessage(
           "Account created. If email confirmation is enabled in Supabase, open the confirmation link, then sign in.",
         );
+        setPending(null);
         return;
       }
 
+      setPending("logging-in");
       const { error: signInError } = await supabase.auth.signInWithPassword({
         email,
         password,
       });
       if (signInError) throw signInError;
       await finishAuth();
+      // Keep the logging-in screen until navigation completes.
     } catch (err) {
       const raw = err instanceof Error ? err.message : "Something went wrong.";
       setError(friendlyAuthError(raw));
-    } finally {
-      setLoading(false);
+      setPending(null);
     }
   }
 
   async function signInWithGoogle() {
     setError(null);
-    setLoading(true);
+    setPending("google");
     try {
       const supabase = createClient();
       const { error: oauthError } = await supabase.auth.signInWithOAuth({
@@ -140,14 +152,19 @@ export function AuthForm({ variant }: { variant: "login" | "signup" }) {
         },
       });
       if (oauthError) throw oauthError;
+      // Redirect leaves this page; keep pending UI visible until then.
     } catch (err) {
       setError(
         friendlyAuthError(
           err instanceof Error ? err.message : "Google sign-in failed.",
         ),
       );
-      setLoading(false);
+      setPending(null);
     }
+  }
+
+  if (pending) {
+    return <AuthPendingScreen pending={pending} />;
   }
 
   return (
@@ -220,14 +237,12 @@ export function AuthForm({ variant }: { variant: "login" | "signup" }) {
         {error ? <p className="text-sm text-danger">{error}</p> : null}
         {message ? <p className="text-sm text-success">{message}</p> : null}
 
-        <Button type="submit" className="w-full" disabled={loading}>
-          {loading
-            ? "Please wait…"
-            : mode === "magic"
-              ? "Send magic link"
-              : variant === "login"
-                ? "Sign in"
-                : "Create account"}
+        <Button type="submit" className="w-full">
+          {mode === "magic"
+            ? "Send magic link"
+            : variant === "login"
+              ? "Sign in"
+              : "Create account"}
         </Button>
       </form>
 
@@ -245,7 +260,6 @@ export function AuthForm({ variant }: { variant: "login" | "signup" }) {
         variant="secondary"
         className="w-full"
         onClick={signInWithGoogle}
-        disabled={loading}
       >
         Continue with Google
       </Button>
@@ -267,6 +281,46 @@ export function AuthForm({ variant }: { variant: "login" | "signup" }) {
           </>
         )}
       </p>
+    </div>
+  );
+}
+
+function AuthPendingScreen({ pending }: { pending: Exclude<Pending, null> }) {
+  const copy = {
+    "logging-in": {
+      title: "Logging in…",
+      subtitle: "Setting up your workspace. This can take a few seconds.",
+    },
+    "creating-account": {
+      title: "Creating your account…",
+      subtitle: "Hang tight while we get things ready.",
+    },
+    "sending-magic": {
+      title: "Sending magic link…",
+      subtitle: "Check your inbox in a moment.",
+    },
+    google: {
+      title: "Continuing with Google…",
+      subtitle: "You’ll be redirected to finish signing in.",
+    },
+  }[pending];
+
+  return (
+    <div
+      className="flex w-full max-w-sm flex-col items-center gap-5 py-8 text-center"
+      role="status"
+      aria-live="polite"
+      aria-busy="true"
+    >
+      <p className="font-display text-lg text-ink">WeStartup</p>
+      <span
+        className="inline-block size-9 animate-spin rounded-full border-2 border-border border-t-accent"
+        aria-hidden
+      />
+      <div className="space-y-1.5">
+        <h1 className="font-display text-2xl text-ink">{copy.title}</h1>
+        <p className="text-sm text-ink-secondary">{copy.subtitle}</p>
+      </div>
     </div>
   );
 }

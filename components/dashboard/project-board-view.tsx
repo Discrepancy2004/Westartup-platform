@@ -11,7 +11,6 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
-import { ArtifactCard } from "@/components/dashboard/artifact-card";
 import { DASH_BAND } from "@/components/dashboard/board-chrome/bands";
 import { SquiggleDecor } from "@/components/dashboard/board-chrome/squiggle-decor";
 import { WaveDivider } from "@/components/dashboard/board-chrome/wave-divider";
@@ -25,12 +24,7 @@ import {
 } from "@/components/dashboard/motion-primitives";
 import { useDna } from "@/components/dna/dna-provider";
 import { evaluateReadiness } from "@/lib/dashboard/readiness";
-import type { DashboardSectionId } from "@/lib/dna/types";
-import {
-  DASHBOARD_SECTIONS,
-  type ArtifactKind,
-  type ArtifactRecord,
-} from "@/lib/types/artifacts";
+import type { ArtifactKind, ArtifactRecord } from "@/lib/types/artifacts";
 import type { OnboardingAnswers } from "@/lib/types/onboarding";
 import { cn } from "@/lib/utils";
 
@@ -113,10 +107,6 @@ export function ProjectBoardView({
   onboarding?: OnboardingAnswers | null;
 }) {
   const { experience } = useDna();
-  const byKind = useMemo(
-    () => new Map(artifacts.map((a) => [a.kind, a])),
-    [artifacts],
-  );
 
   const readiness = useMemo(
     () => evaluateReadiness({ artifacts, onboarding }),
@@ -725,76 +715,6 @@ export function ProjectBoardView({
             </Link>
           </MotionCard>
         </div>
-      </section>
-
-      <WaveDivider fill={DASH_BAND.mist} height={72} />
-
-      {/* Band 3: full document pack */}
-      <section
-        className="relative space-y-10 px-3 py-10 sm:px-4"
-        style={{ background: DASH_BAND.mist }}
-      >
-        <FadeIn>
-          <div>
-            <h2 className="font-display text-2xl text-ink">
-              Investor documents
-            </h2>
-            <p className="mt-1 text-sm text-ink-secondary">
-              Full artifact pack from Overview - charts and narratives not
-              summarized in the board above.
-            </p>
-          </div>
-        </FadeIn>
-
-        {DASHBOARD_SECTIONS.map((section, sectionIndex) => {
-          const cards = section.kinds
-            .map((kind) => byKind.get(kind))
-            .filter((a): a is ArtifactRecord => Boolean(a));
-          const sectionId = section.id as DashboardSectionId;
-          const title =
-            experience.sectionTitles[sectionId] ?? section.id;
-          const heroKinds = new Set<ArtifactKind>(section.heroKinds ?? []);
-
-          return (
-            <FadeIn key={section.id} delay={0.04 + sectionIndex * 0.03}>
-              <section
-                id={`board-section-${section.id}`}
-                className="scroll-mt-8 space-y-4"
-              >
-                <div className="flex items-end justify-between gap-3 border-b border-border pb-3">
-                  <h3 className="font-display text-xl text-ink">{title}</h3>
-                  <p className="text-xs text-ink-tertiary">
-                    {cards.length} document{cards.length === 1 ? "" : "s"}
-                  </p>
-                </div>
-
-                {!cards.length ? (
-                  <div className="rounded-[var(--radius-md)] border border-dashed border-border px-4 py-8 text-center text-sm text-ink-tertiary">
-                    Documents for this section are missing.{" "}
-                    <Link href="/chat" className="text-accent underline">
-                      Regenerate from chat
-                    </Link>
-                    .
-                  </div>
-                ) : (
-                  <div className="grid gap-5 lg:grid-cols-2">
-                    {cards.map((artifact) => {
-                      const fullWidth =
-                        heroKinds.has(artifact.kind) || cards.length === 1;
-                      return (
-                        <ArtifactCard
-                          key={artifact.id}
-                          artifact={artifact}
-                          className={fullWidth ? "lg:col-span-2" : undefined}
-                        />
-                      );
-                    })}
-                  </div>
-                )}
-              </section>
-            </FadeIn>
-          );
-        })}
       </section>
     </div>
   );
