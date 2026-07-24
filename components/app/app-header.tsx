@@ -3,7 +3,6 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
-import { ThemeToggle } from "@/components/theme/theme-toggle";
 
 type Props = {
   active: "chat" | "dashboard" | "billing";
@@ -66,7 +65,6 @@ export function AppHeader({ active }: Props) {
             {email}
           </p>
         ) : null}
-        <ThemeToggle />
         <Button
           type="button"
           variant="ghost"

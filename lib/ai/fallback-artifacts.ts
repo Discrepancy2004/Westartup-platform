@@ -98,9 +98,9 @@ export function buildFallbackArtifacts(options: {
       `${model} · ${price}`,
       {
         streams: [
-          { name: model, sharePercent: 70 },
+          { name: model === "Other" ? "Primary offering" : model, sharePercent: 70 },
           { name: "Adjacent services", sharePercent: 20 },
-          { name: "Other", sharePercent: 10 },
+          { name: "Misc / residual", sharePercent: 10 },
         ],
       },
       now,

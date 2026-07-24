@@ -14,6 +14,7 @@ import {
   MotionCard,
 } from "@/components/dashboard/motion-primitives";
 import { PitchDeckView } from "@/components/dashboard/pitch-deck-view";
+import { ProjectBoardView } from "@/components/dashboard/project-board-view";
 import { ValuationView } from "@/components/dashboard/valuation-view";
 import { useDna } from "@/components/dna/dna-provider";
 import { DnaWelcome } from "@/components/dna/dna-ui";
@@ -29,6 +30,7 @@ import { cn } from "@/lib/utils";
 
 const VIEWS = [
   { id: "overview", label: "Overview" },
+  { id: "board", label: "Project Board" },
   { id: "pitch", label: "Pitch Deck" },
   { id: "finance", label: "Financial Model" },
   { id: "valuation", label: "Valuation" },
@@ -37,7 +39,14 @@ const VIEWS = [
 type ViewId = (typeof VIEWS)[number]["id"];
 
 function parseView(raw: string | null): ViewId {
-  if (raw === "pitch" || raw === "finance" || raw === "valuation") return raw;
+  if (
+    raw === "board" ||
+    raw === "pitch" ||
+    raw === "finance" ||
+    raw === "valuation"
+  ) {
+    return raw;
+  }
   return "overview";
 }
 
@@ -137,6 +146,23 @@ export function DashboardShell({
                 ))}
               </div>
             ) : null}
+
+            {activeView === "board" && artifacts.length > 0 ? (
+              <div className="mt-4 border-t border-border pt-3">
+                <p className="px-2 pb-2 text-[10px] uppercase tracking-[0.16em] text-ink-tertiary">
+                  Documents
+                </p>
+                {sectionNav.map((s) => (
+                  <a
+                    key={s.id}
+                    href={`#board-section-${s.id}`}
+                    className="block rounded-[var(--radius-md)] px-3 py-1.5 text-xs text-ink-tertiary transition-colors hover:bg-canvas hover:text-ink"
+                  >
+                    {s.label}
+                  </a>
+                ))}
+              </div>
+            ) : null}
           </nav>
         </aside>
 
@@ -146,6 +172,12 @@ export function DashboardShell({
               artifacts={artifacts}
               byKind={byKind}
               kpis={kpis}
+              onboarding={onboarding}
+            />
+          ) : null}
+          {activeView === "board" ? (
+            <ProjectBoardView
+              artifacts={artifacts}
               onboarding={onboarding}
             />
           ) : null}
@@ -178,14 +210,14 @@ function OverviewBody({
   const { experience } = useDna();
 
   return (
-    <>
-      <FadeIn className="max-w-2xl space-y-3">
-        <DnaWelcome />
+    <div className="text-center">
+      <FadeIn className="mx-auto max-w-2xl space-y-3">
+        <DnaWelcome className="text-center" />
         <div>
-          <h1 className="font-display text-3xl text-ink">
+          <h1 className="font-display text-3xl text-ink text-balance">
             {experience.icons.spark} {experience.dashboardTitle}
           </h1>
-          <p className="mt-2 text-sm text-ink-secondary">
+          <p className="mt-2 text-sm text-ink-secondary text-pretty">
             {experience.dashboardSubtitle}
           </p>
         </div>
@@ -195,6 +227,7 @@ function OverviewBody({
         <InvestorReadinessPanel
           artifacts={artifacts}
           onboarding={onboarding}
+          centered
         />
       ) : null}
 
@@ -207,7 +240,7 @@ function OverviewBody({
               <MotionCard key={w.slot}>
                 <FadeIn delay={0.06 + i * 0.05}>
                   <div
-                    className="rounded-[var(--radius-md)] border border-border bg-surface/80 px-3 py-3 shadow-sm transition-[border-color,box-shadow] duration-250 ease-out hover:border-accent/35 hover:shadow-[0_10px_24px_-12px_rgba(0,0,0,0.35)]"
+                    className="rounded-[var(--radius-md)] border border-border bg-surface/80 px-3 py-3 text-center shadow-sm transition-[border-color,box-shadow] duration-250 ease-out hover:border-accent/35 hover:shadow-[0_10px_24px_-12px_rgba(0,0,0,0.35)]"
                     style={{
                       backgroundImage: `linear-gradient(135deg, color-mix(in srgb, var(--accent) 14%, transparent), transparent 72%)`,
                     }}
@@ -245,9 +278,11 @@ function OverviewBody({
                     id={`section-${section.id}`}
                     className="scroll-mt-8 space-y-4"
                   >
-                    <div className="flex items-end justify-between gap-3 border-b border-border pb-3">
-                      <h2 className="font-display text-2xl text-ink">{title}</h2>
-                      <p className="text-xs text-ink-tertiary">
+                    <div className="border-b border-border pb-3 text-center">
+                      <h2 className="font-display text-2xl text-ink text-balance">
+                        {title}
+                      </h2>
+                      <p className="mt-1 text-xs text-ink-tertiary">
                         {cards.length} document{cards.length === 1 ? "" : "s"}
                       </p>
                     </div>
@@ -269,6 +304,7 @@ function OverviewBody({
                             <ArtifactCard
                               key={artifact.id}
                               artifact={artifact}
+                              centered
                               className={fullWidth ? "lg:col-span-2" : undefined}
                             />
                           );
@@ -282,6 +318,6 @@ function OverviewBody({
           </div>
         </>
       )}
-    </>
+    </div>
   );
 }

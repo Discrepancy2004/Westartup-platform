@@ -1,50 +1,56 @@
 import Link from "next/link";
-import { DashboardMock } from "./dashboard-mock";
+import { SectionDecor } from "./section-decor";
+
+const PLACEHOLDERS = [
+  "Pre-seed",
+  "Solo founders",
+  "Ops builders",
+  "Diligence prep",
+  "INR raises",
+] as const;
 
 export function Hero() {
   return (
-    <section className="relative isolate min-h-[100svh] overflow-hidden">
-      {/* Atmosphere — cool wash, not flat white */}
-      <div
-        aria-hidden
-        className="pointer-events-none absolute inset-0 -z-10"
-        style={{
-          background:
-            "radial-gradient(ellipse 80% 55% at 70% 10%, color-mix(in oklab, var(--accent-subtle) 70%, transparent), transparent 55%), linear-gradient(180deg, #eef2f6 0%, var(--canvas) 42%, #e8edf3 100%)",
-        }}
-      />
+    <section className="mkt-field-dark mkt-section relative overflow-hidden pt-20 md:pt-24">
+      <SectionDecor variant="hero" tone="on-dark" />
 
-      <div className="mx-auto flex min-h-[100svh] max-w-6xl flex-col px-6 pb-0 pt-28">
-        <div className="animate-fade-up max-w-2xl space-y-6">
-          <h1 className="font-display text-5xl leading-[1.05] tracking-tight text-ink sm:text-6xl md:text-7xl">
-            WeStartup
-          </h1>
-          <p className="max-w-xl text-lg text-ink-secondary sm:text-xl">
-            From idea to investor-ready in under an hour — pressure-tested by an
-            advisor that challenges you, not cheers you on.
-          </p>
-          <div className="flex flex-wrap items-center gap-3 pt-1">
-            <Link
-              href="/signup"
-              className="rounded-[var(--radius-md)] bg-accent px-5 py-2.5 text-sm font-medium text-white transition-colors hover:bg-accent-hover"
-            >
-              Get started free
-            </Link>
-            <a
-              href="#how-it-works"
-              className="rounded-[var(--radius-md)] border border-border bg-surface/70 px-5 py-2.5 text-sm font-medium text-ink transition-colors hover:bg-surface"
-            >
-              See how it works
-            </a>
-          </div>
+      <div className="relative z-10 mx-auto max-w-4xl text-center">
+        <p className="animate-fade-up mb-4 text-xs font-semibold uppercase tracking-[0.18em] text-[var(--mkt-accent)] sm:text-sm">
+          WeStartup
+        </p>
+        <h1 className="animate-hero-title font-display text-4xl font-bold leading-[1.08] text-[var(--mkt-section-ink)] sm:text-5xl md:text-6xl lg:text-[4.25rem] lg:leading-[1.05]">
+          Pressure-test the idea.
+          <br />
+          Walk in ready.
+        </h1>
+        <p className="animate-fade-up-delay mx-auto mt-5 max-w-xl text-base leading-relaxed text-[var(--mkt-section-muted)] sm:text-lg md:text-xl md:leading-relaxed">
+          WeStartup is an AI advisor that challenges weak assumptions, then
+          leaves you with investor-ready documents, not applause.
+        </p>
+        <div className="animate-fade-up-delay-2 mt-8 flex flex-wrap items-center justify-center gap-3">
+          <Link href="/signup" className="mkt-btn-primary">
+            Get started
+          </Link>
+          <a href="#product" className="mkt-btn-ghost text-[var(--mkt-section-ink)]">
+            See the product
+          </a>
         </div>
+      </div>
 
-        {/* Full-bleed visual plane within hero — edge-to-edge of content column, bleeds bottom */}
-        <div className="animate-fade-up-delay relative mt-14 flex-1 min-h-[280px] sm:min-h-[360px]">
-          <div className="absolute inset-x-0 bottom-0 top-0 origin-bottom scale-[1.02] sm:scale-100">
-            <DashboardMock variant="hero" />
-          </div>
-        </div>
+      <div className="animate-fade-up-delay-3 relative z-10 mx-auto mt-14 max-w-4xl border-t border-white/10 pt-8">
+        <p className="text-center text-[0.65rem] font-medium uppercase tracking-[0.18em] text-[var(--mkt-section-faint)] sm:text-xs">
+          Built for
+        </p>
+        <ul className="mt-5 flex flex-wrap items-center justify-center gap-x-8 gap-y-2">
+          {PLACEHOLDERS.map((label) => (
+            <li
+              key={label}
+              className="text-sm font-medium tracking-wide text-[var(--mkt-section-muted)]/85 sm:text-base"
+            >
+              {label}
+            </li>
+          ))}
+        </ul>
       </div>
     </section>
   );

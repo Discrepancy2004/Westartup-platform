@@ -1,50 +1,61 @@
+"use client";
+
 import Link from "next/link";
-import { ThemeToggle } from "@/components/theme/theme-toggle";
+import { useEffect, useState } from "react";
+import { cn } from "@/lib/utils";
 
 const NAV = [
-  { href: "#how-it-works", label: "How it works" },
-  { href: "#difference", label: "Difference" },
-  { href: "#preview", label: "Output" },
-  { href: "#pricing", label: "Pricing" },
+  { href: "#product", label: "Product" },
+  { href: "#proof", label: "Proof" },
+  { href: "#positioning", label: "Approach" },
+  { href: "#resources", label: "Resources" },
 ] as const;
 
 export function SiteHeader() {
+  const [solid, setSolid] = useState(false);
+
+  useEffect(() => {
+    const onScroll = () => setSolid(window.scrollY > 24);
+    onScroll();
+    window.addEventListener("scroll", onScroll, { passive: true });
+    return () => window.removeEventListener("scroll", onScroll);
+  }, []);
+
   return (
-    <header className="absolute inset-x-0 top-0 z-20">
-      <div className="mx-auto flex h-16 max-w-6xl items-center justify-between px-6">
+    <header className={cn("mkt-nav sticky top-0 z-40", solid && "is-solid")}>
+      <div className="mx-auto flex h-14 max-w-6xl items-center justify-between px-5 md:h-16">
         <Link
           href="/"
-          className="font-display text-lg tracking-tight text-ink"
+          className="font-display text-lg text-[var(--mkt-ink)]"
           aria-label="WeStartup home"
         >
           WeStartup
         </Link>
 
-        <nav className="hidden items-center gap-8 md:flex" aria-label="Primary">
+        <nav
+          className="absolute left-1/2 hidden -translate-x-1/2 items-center gap-6 md:flex"
+          aria-label="Primary"
+        >
           {NAV.map((item) => (
             <a
               key={item.href}
               href={item.href}
-              className="text-sm text-ink-secondary transition-colors hover:text-ink"
+              className="text-sm text-[var(--mkt-muted)] transition-colors hover:text-[var(--mkt-ink)]"
             >
               {item.label}
             </a>
           ))}
         </nav>
 
-        <div className="flex items-center gap-3">
-          <ThemeToggle />
+        <div className="flex items-center gap-2 sm:gap-2.5">
           <Link
             href="/login"
-            className="hidden text-sm text-ink-secondary transition-colors hover:text-ink sm:inline"
+            className="hidden text-sm text-[var(--mkt-muted)] transition-colors hover:text-[var(--mkt-ink)] sm:inline"
           >
-            Sign in
+            Log in
           </Link>
-          <Link
-            href="/signup"
-            className="rounded-[var(--radius-md)] bg-accent px-3.5 py-2 text-sm font-medium text-white transition-colors hover:bg-accent-hover"
-          >
-            Get started free
+          <Link href="/signup" className="mkt-btn-primary !px-3.5 !py-1.5 text-sm">
+            Get started
           </Link>
         </div>
       </div>

@@ -36,9 +36,11 @@ function useChartAccent() {
 export function ArtifactCard({
   artifact,
   className,
+  centered = false,
 }: {
   artifact: ArtifactRecord;
   className?: string;
+  centered?: boolean;
 }) {
   const { experience } = useDna();
   const label =
@@ -50,9 +52,15 @@ export function ArtifactCard({
         className={cn(
           "h-full rounded-[var(--radius-lg)] border border-border bg-surface p-5 shadow-sm transition-[border-color,box-shadow] duration-250 ease-out",
           "hover:border-accent/40 hover:shadow-[0_14px_32px_-16px_rgba(0,0,0,0.4)]",
+          centered && "text-center",
         )}
       >
-        <div className="flex items-start justify-between gap-3">
+        <div
+          className={cn(
+            "flex items-start gap-3",
+            centered ? "justify-center" : "justify-between",
+          )}
+        >
           <div>
             <p className="text-[10px] uppercase tracking-[0.16em] text-ink-tertiary">
               {label}
@@ -63,7 +71,12 @@ export function ArtifactCard({
           </div>
         </div>
         {artifact.summary ? (
-          <p className="mt-3 text-sm leading-relaxed text-ink-secondary">
+          <p
+            className={cn(
+              "mt-3 text-sm leading-relaxed text-ink-secondary",
+              centered && "mx-auto max-w-prose",
+            )}
+          >
             {artifact.summary}
           </p>
         ) : null}
@@ -194,7 +207,7 @@ function ArtifactVisual({ kind, data }: { kind: ArtifactKind; data: unknown }) {
         </div>
         <ul className="space-y-2 text-sm text-ink-secondary">
           {streams.map((s, i) => (
-            <li key={s.name} className="flex items-center gap-2">
+            <li key={`${s.name}-${i}`} className="flex items-center gap-2">
               <span
                 className="size-2 rounded-full"
                 style={{ background: colors[i % colors.length] }}
@@ -450,7 +463,7 @@ function ArtifactVisual({ kind, data }: { kind: ArtifactKind; data: unknown }) {
         <ul className="space-y-1 text-xs text-ink-secondary">
           {sorted.map((c) =>
             c.note ? (
-              <li key={c.name}>
+              <li key={`${c.name}-${c.note}`}>
                 <span className="text-ink">{c.name}</span> — {c.note}
               </li>
             ) : null,
