@@ -2,10 +2,17 @@ import { generateObject } from "ai";
 import { z } from "zod";
 import { buildFallbackArtifacts } from "@/lib/ai/fallback-artifacts";
 import { getLanguageModelResilient } from "@/lib/ai/provider";
+import { detectStartupDna } from "@/lib/dna/detect";
+import { buildHiddenDnaContext } from "@/lib/dna/resolve";
 import type { OnboardingAnswers } from "@/lib/types/onboarding";
 import type { createClient } from "@/lib/supabase/server";
 
 type SupabaseServer = Awaited<ReturnType<typeof createClient>>;
+
+const titled = {
+  title: z.string(),
+  summary: z.string(),
+};
 
 const bootstrapSchema = z.object({
   advisorOpening: z
@@ -14,8 +21,7 @@ const bootstrapSchema = z.object({
       "2-4 sentences: sharp challenge + one probing question. No welcome fluff.",
     ),
   ideaBrief: z.object({
-    title: z.string(),
-    summary: z.string(),
+    ...titled,
     oneLiner: z.string(),
     problem: z.string(),
     solution: z.string(),
@@ -23,8 +29,7 @@ const bootstrapSchema = z.object({
     challenges: z.array(z.string()).min(1).max(4),
   }),
   financialProjections: z.object({
-    title: z.string(),
-    summary: z.string(),
+    ...titled,
     years: z
       .array(
         z.object({
@@ -35,10 +40,18 @@ const bootstrapSchema = z.object({
       )
       .min(3)
       .max(6),
+    notes: z.string().optional(),
+    capexNotes: z
+      .string()
+      .optional()
+      .describe("Short CapEx note for Year 1 infra/tooling"),
+    opexNotes: z
+      .string()
+      .optional()
+      .describe("Short OpEx note covering salaries, GTM, infra"),
   }),
   revenueModel: z.object({
-    title: z.string(),
-    summary: z.string(),
+    ...titled,
     streams: z
       .array(
         z.object({
@@ -50,8 +63,7 @@ const bootstrapSchema = z.object({
       .max(5),
   }),
   marketSizing: z.object({
-    title: z.string(),
-    summary: z.string(),
+    ...titled,
     tam: z.number(),
     sam: z.number(),
     som: z.number(),
@@ -59,18 +71,108 @@ const bootstrapSchema = z.object({
     rationale: z.string(),
   }),
   teamOverview: z.object({
-    title: z.string(),
-    summary: z.string(),
+    ...titled,
     sizeLabel: z.string(),
     roles: z.array(
       z.object({ title: z.string(), focus: z.string().optional() }),
     ),
     gaps: z.array(z.string()),
   }),
+  unitEconomics: z.object({
+    ...titled,
+    cac: z.number(),
+    ltv: z.number(),
+    ltvCacRatio: z.number(),
+    paybackMonths: z.number(),
+    grossMarginPercent: z.number(),
+    arpu: z.number().optional(),
+    notes: z.string().optional(),
+  }),
+  tractionKpis: z.object({
+    ...titled,
+    series: z
+      .array(
+        z.object({
+          label: z.string(),
+          users: z.number().optional(),
+          revenue: z.number().optional(),
+        }),
+      )
+      .min(4)
+      .max(8),
+    retentionPercent: z.number().optional(),
+    growthMoMPercent: z.number().optional(),
+    notes: z.string().optional(),
+  }),
+  competitiveLandscape: z.object({
+    ...titled,
+    competitors: z
+      .array(
+        z.object({
+          name: z.string(),
+          score: z.number(),
+          note: z.string().optional(),
+        }),
+      )
+      .min(3)
+      .max(6),
+    axisLabel: z.string().default("Relative strength"),
+    notes: z.string().optional(),
+  }),
+  gtmPlan: z.object({
+    ...titled,
+    channels: z
+      .array(
+        z.object({
+          name: z.string(),
+          sharePercent: z.number(),
+        }),
+      )
+      .min(2)
+      .max(5),
+    funnel: z
+      .array(
+        z.object({
+          stage: z.string(),
+          value: z.number(),
+        }),
+      )
+      .min(3)
+      .max(5),
+    notes: z.string().optional(),
+  }),
+  burnRunway: z.object({
+    ...titled,
+    months: z
+      .array(
+        z.object({
+          label: z.string(),
+          burn: z.number(),
+        }),
+      )
+      .min(4)
+      .max(8),
+    runwayMonths: z.number(),
+    monthlyBurn: z.number().optional(),
+    notes: z.string().optional(),
+  }),
+  milestones: z.object({
+    ...titled,
+    items: z
+      .array(
+        z.object({
+          label: z.string(),
+          timing: z.string(),
+          status: z.enum(["done", "next", "later"]),
+        }),
+      )
+      .min(3)
+      .max(6),
+    notes: z.string().optional(),
+  }),
   dealStructure: z
     .object({
-      title: z.string(),
-      summary: z.string(),
+      ...titled,
       currentlyRaising: z.boolean(),
       amountInr: z.number().optional(),
       stage: z.string().optional(),
@@ -79,13 +181,23 @@ const bootstrapSchema = z.object({
     .optional(),
 });
 
+type ArtifactRow = {
+  user_id: string;
+  conversation_id: string;
+  kind: string;
+  title: string;
+  summary: string;
+  chart_data: Record<string, unknown>;
+  updated_at: string;
+  source: "bootstrap" | "chat";
+};
+
 async function persistArtifacts(
   supabase: SupabaseServer,
-  rows: ReturnType<typeof buildFallbackArtifacts>["rows"],
+  rows: ArtifactRow[],
   conversationId: string,
   advisorOpening: string,
 ) {
-  // Prefer user client; if RLS blocks, fall back to service role
   let errorMessage: string | null = null;
   const { error } = await supabase.from("artifacts").upsert(rows, {
     onConflict: "user_id,kind",
@@ -118,6 +230,26 @@ async function persistArtifacts(
   });
 }
 
+function stamp(
+  userId: string,
+  conversationId: string,
+  kind: string,
+  title: string,
+  summary: string,
+  chart_data: Record<string, unknown>,
+): ArtifactRow {
+  return {
+    user_id: userId,
+    conversation_id: conversationId,
+    kind,
+    title,
+    summary,
+    chart_data,
+    updated_at: new Date().toISOString(),
+    source: "bootstrap",
+  };
+}
+
 export async function generateBootstrapArtifacts(options: {
   supabase: SupabaseServer;
   userId: string;
@@ -126,78 +258,70 @@ export async function generateBootstrapArtifacts(options: {
 }) {
   const { supabase, userId, conversationId, onboarding } = options;
   const raising = onboarding["deal-structure"]?.currentlyRaising ?? false;
+  const dna = detectStartupDna(onboarding);
+  const dnaContext = buildHiddenDnaContext(dna, onboarding);
 
-  // 1) Try AI structured generation
   try {
     const { model, provider, modelId } = getLanguageModelResilient();
     const { object } = await generateObject({
       model,
       schema: bootstrapSchema,
-      prompt: `You are the WeStartup advisor. From this onboarding JSON, produce investor-ready structured artifacts (INR). Be skeptical and concrete — invent plausible illustrative numbers when needed, labeled as projections not facts.
+      prompt: `You are the WeStartup advisor. From this onboarding JSON, produce a full investor-ready dashboard pack (INR). Be skeptical and concrete — invent plausible illustrative numbers when needed, labeled as projections not facts.
 
 Onboarding:
 ${JSON.stringify(onboarding, null, 2)}
 
+${dnaContext}
+
 Rules:
+- Title and summarize artifacts in language natural to this vertical (without mentioning theme detection).
 - Include dealStructure only if currentlyRaising is true (it is ${raising}).
+- Always include unitEconomics, tractionKpis, competitiveLandscape, gtmPlan, burnRunway, milestones.
+- Include short capexNotes and opexNotes on financialProjections.
 - Market figures in ₹ Cr unless you set unit otherwise.
-- Revenue stream percents should sum to ~100.
-- advisorOpening: challenge weak spots; end with one probing question.
+- Revenue / channel percents should sum to ~100.
+- Burn months in ₹ lakhs; traction revenue in ₹ lakhs if present.
+- advisorOpening: challenge weak spots for this industry; end with one probing question.
 - Keep JSON compact.`,
     });
 
-    const rows: {
-      user_id: string;
-      conversation_id: string;
-      kind: string;
-      title: string;
-      summary: string;
-      chart_data: Record<string, unknown>;
-      updated_at: string;
-    }[] = [
-      {
-        user_id: userId,
-        conversation_id: conversationId,
-        kind: "idea-brief",
-        title: object.ideaBrief.title,
-        summary: object.ideaBrief.summary,
-        chart_data: {
-          oneLiner: object.ideaBrief.oneLiner,
-          problem: object.ideaBrief.problem,
-          solution: object.ideaBrief.solution,
-          audience: object.ideaBrief.audience,
-          challenges: object.ideaBrief.challenges,
-        },
-        updated_at: new Date().toISOString(),
-      },
-      {
-        user_id: userId,
-        conversation_id: conversationId,
-        kind: "financial-projections",
-        title: object.financialProjections.title,
-        summary: object.financialProjections.summary,
-        chart_data: {
+    const rows: ArtifactRow[] = [
+      stamp(userId, conversationId, "idea-brief", object.ideaBrief.title, object.ideaBrief.summary, {
+        oneLiner: object.ideaBrief.oneLiner,
+        problem: object.ideaBrief.problem,
+        solution: object.ideaBrief.solution,
+        audience: object.ideaBrief.audience,
+        challenges: object.ideaBrief.challenges,
+      }),
+      stamp(
+        userId,
+        conversationId,
+        "financial-projections",
+        object.financialProjections.title,
+        object.financialProjections.summary,
+        {
           currency: "INR",
           years: object.financialProjections.years,
+          notes: object.financialProjections.notes,
+          capexNotes: object.financialProjections.capexNotes,
+          opexNotes: object.financialProjections.opexNotes,
         },
-        updated_at: new Date().toISOString(),
-      },
-      {
-        user_id: userId,
-        conversation_id: conversationId,
-        kind: "revenue-model",
-        title: object.revenueModel.title,
-        summary: object.revenueModel.summary,
-        chart_data: { streams: object.revenueModel.streams },
-        updated_at: new Date().toISOString(),
-      },
-      {
-        user_id: userId,
-        conversation_id: conversationId,
-        kind: "market-sizing",
-        title: object.marketSizing.title,
-        summary: object.marketSizing.summary,
-        chart_data: {
+      ),
+      stamp(
+        userId,
+        conversationId,
+        "revenue-model",
+        object.revenueModel.title,
+        object.revenueModel.summary,
+        { streams: object.revenueModel.streams },
+      ),
+      stamp(
+        userId,
+        conversationId,
+        "market-sizing",
+        object.marketSizing.title,
+        object.marketSizing.summary,
+        {
           currency: "INR",
           tam: object.marketSizing.tam,
           sam: object.marketSizing.sam,
@@ -205,46 +329,119 @@ Rules:
           unit: object.marketSizing.unit,
           rationale: object.marketSizing.rationale,
         },
-        updated_at: new Date().toISOString(),
-      },
-      {
-        user_id: userId,
-        conversation_id: conversationId,
-        kind: "team-overview",
-        title: object.teamOverview.title,
-        summary: object.teamOverview.summary,
-        chart_data: {
+      ),
+      stamp(
+        userId,
+        conversationId,
+        "team-overview",
+        object.teamOverview.title,
+        object.teamOverview.summary,
+        {
           sizeLabel: object.teamOverview.sizeLabel,
           roles: object.teamOverview.roles,
           gaps: object.teamOverview.gaps,
         },
-        updated_at: new Date().toISOString(),
-      },
+      ),
+      stamp(
+        userId,
+        conversationId,
+        "unit-economics",
+        object.unitEconomics.title,
+        object.unitEconomics.summary,
+        {
+          currency: "INR",
+          cac: object.unitEconomics.cac,
+          ltv: object.unitEconomics.ltv,
+          ltvCacRatio: object.unitEconomics.ltvCacRatio,
+          paybackMonths: object.unitEconomics.paybackMonths,
+          grossMarginPercent: object.unitEconomics.grossMarginPercent,
+          arpu: object.unitEconomics.arpu,
+          notes: object.unitEconomics.notes,
+        },
+      ),
+      stamp(
+        userId,
+        conversationId,
+        "traction-kpis",
+        object.tractionKpis.title,
+        object.tractionKpis.summary,
+        {
+          series: object.tractionKpis.series,
+          retentionPercent: object.tractionKpis.retentionPercent,
+          growthMoMPercent: object.tractionKpis.growthMoMPercent,
+          notes: object.tractionKpis.notes,
+        },
+      ),
+      stamp(
+        userId,
+        conversationId,
+        "competitive-landscape",
+        object.competitiveLandscape.title,
+        object.competitiveLandscape.summary,
+        {
+          competitors: object.competitiveLandscape.competitors,
+          axisLabel: object.competitiveLandscape.axisLabel,
+          notes: object.competitiveLandscape.notes,
+        },
+      ),
+      stamp(
+        userId,
+        conversationId,
+        "gtm-plan",
+        object.gtmPlan.title,
+        object.gtmPlan.summary,
+        {
+          channels: object.gtmPlan.channels,
+          funnel: object.gtmPlan.funnel,
+          notes: object.gtmPlan.notes,
+        },
+      ),
+      stamp(
+        userId,
+        conversationId,
+        "burn-runway",
+        object.burnRunway.title,
+        object.burnRunway.summary,
+        {
+          currency: "INR",
+          months: object.burnRunway.months,
+          runwayMonths: object.burnRunway.runwayMonths,
+          monthlyBurn: object.burnRunway.monthlyBurn,
+          notes: object.burnRunway.notes,
+        },
+      ),
+      stamp(
+        userId,
+        conversationId,
+        "milestones",
+        object.milestones.title,
+        object.milestones.summary,
+        {
+          items: object.milestones.items,
+          notes: object.milestones.notes,
+        },
+      ),
     ];
 
     if (raising && object.dealStructure) {
-      rows.push({
-        user_id: userId,
-        conversation_id: conversationId,
-        kind: "deal-structure",
-        title: object.dealStructure.title,
-        summary: object.dealStructure.summary,
-        chart_data: {
-          currentlyRaising: object.dealStructure.currentlyRaising,
-          amountInr: object.dealStructure.amountInr,
-          stage: object.dealStructure.stage,
-          useOfFunds: object.dealStructure.useOfFunds,
-        },
-        updated_at: new Date().toISOString(),
-      });
+      rows.push(
+        stamp(
+          userId,
+          conversationId,
+          "deal-structure",
+          object.dealStructure.title,
+          object.dealStructure.summary,
+          {
+            currentlyRaising: object.dealStructure.currentlyRaising,
+            amountInr: object.dealStructure.amountInr,
+            stage: object.dealStructure.stage,
+            useOfFunds: object.dealStructure.useOfFunds,
+          },
+        ),
+      );
     }
 
-    await persistArtifacts(
-      supabase,
-      rows,
-      conversationId,
-      object.advisorOpening,
-    );
+    await persistArtifacts(supabase, rows, conversationId, object.advisorOpening);
 
     console.info(`[bootstrap] AI ok via ${provider}/${modelId}`);
     return {
@@ -258,7 +455,6 @@ Rules:
     console.warn("[bootstrap] AI failed, using onboarding fallback", err);
   }
 
-  // 2) Always-available fallback from onboarding answers
   const fallback = buildFallbackArtifacts({
     userId,
     conversationId,

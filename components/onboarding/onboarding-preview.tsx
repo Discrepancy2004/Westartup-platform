@@ -150,12 +150,18 @@ function FilledPanel({
   }
 
   const deal = answers["deal-structure"];
+  const intentLabel: Record<string, string> = {
+    bootstrapping: "Bootstrapping",
+    looking: "Looking for investors",
+    raising: "Raising",
+    "too-early": "Too early",
+  };
   return (
     <p className="mt-2 text-xs text-ink-secondary">
       {deal
         ? deal.currentlyRaising
           ? `Raising${deal.amount ? ` · ${deal.amount}` : ""}`
-          : "Not raising"
+          : intentLabel[deal.intent ?? ""] ?? "Not raising"
         : "Deal pending"}
     </p>
   );

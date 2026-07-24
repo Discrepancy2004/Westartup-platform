@@ -1,5 +1,7 @@
 "use server";
 
+import { resolveCompanionPersona } from "@/lib/companion/resolve";
+import { detectStartupDna } from "@/lib/dna/detect";
 import { createServiceClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 import {
@@ -23,10 +25,18 @@ export async function completeOnboarding(raw: OnboardingAnswers) {
       return { error: "You must be signed in to finish onboarding." };
     }
 
+    const baseDna = detectStartupDna(parsed.data);
+    const companionPersona = resolveCompanionPersona({
+      onboarding: parsed.data,
+      dna: baseDna,
+    });
+    const startupDna = { ...baseDna, companionPersona };
+
     const payload = {
       id: user.id,
       email: user.email,
       onboarding: parsed.data,
+      startup_dna: startupDna,
       onboarding_completed_at: new Date().toISOString(),
       first_login: false,
     };
@@ -38,7 +48,6 @@ export async function completeOnboarding(raw: OnboardingAnswers) {
       .maybeSingle();
 
     if (error || !data) {
-      // Fallback: service role (covers missing insert policy / RLS edge cases)
       try {
         const admin = createServiceClient();
         const { error: adminError } = await admin

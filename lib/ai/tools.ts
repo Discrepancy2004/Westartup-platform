@@ -36,6 +36,7 @@ export function createArtifactTools(options: {
               summary: summary ?? null,
               chart_data: chartData,
               updated_at: new Date().toISOString(),
+              source: "chat",
             },
             { onConflict: "user_id,kind" },
           )

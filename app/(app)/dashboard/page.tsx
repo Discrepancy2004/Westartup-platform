@@ -1,12 +1,13 @@
-import { AppHeader } from "@/components/app/app-header";
-import { ArtifactCard } from "@/components/dashboard/artifact-card";
-import { DashboardEmptyState } from "@/components/dashboard/dashboard-empty-state";
+import { Suspense } from "react";
+import { DashboardShell } from "@/components/dashboard/dashboard-shell";
 import { createClient } from "@/lib/supabase/server";
 import { isSupabaseConfigured } from "@/lib/utils";
 import type { ArtifactRecord } from "@/lib/types/artifacts";
+import type { OnboardingAnswers } from "@/lib/types/onboarding";
 
 export default async function DashboardPage() {
   let artifacts: ArtifactRecord[] = [];
+  let onboarding: OnboardingAnswers | null = null;
 
   if (isSupabaseConfigured()) {
     try {
@@ -15,43 +16,49 @@ export default async function DashboardPage() {
         data: { user },
       } = await supabase.auth.getUser();
       if (user) {
-        const { data } = await supabase
-          .from("artifacts")
-          .select("id, kind, title, summary, chart_data, updated_at")
-          .eq("user_id", user.id)
-          .order("updated_at", { ascending: false });
+        const [{ data }, profileRes] = await Promise.all([
+          supabase
+            .from("artifacts")
+            .select("id, kind, title, summary, chart_data, updated_at, source")
+            .eq("user_id", user.id)
+            .order("updated_at", { ascending: false }),
+          supabase
+            .from("profiles")
+            .select("onboarding")
+            .eq("id", user.id)
+            .maybeSingle(),
+        ]);
         artifacts = (data as ArtifactRecord[] | null) ?? [];
+        onboarding =
+          (profileRes.data?.onboarding as OnboardingAnswers | null) ?? null;
       }
     } catch {
       artifacts = [];
+      onboarding = null;
     }
   }
 
   return (
-    <div className="min-h-[100svh]">
-      <AppHeader active="dashboard" />
+    <Suspense fallback={<DashboardSkeleton />}>
+      <DashboardShell artifacts={artifacts} onboarding={onboarding} />
+    </Suspense>
+  );
+}
 
-      <main className="mx-auto max-w-6xl px-4 py-8">
-        <div className="flex flex-wrap items-end justify-between gap-4">
-          <div className="max-w-2xl space-y-2">
-            <h1 className="font-display text-3xl text-ink">Dashboard</h1>
-            <p className="text-sm text-ink-secondary">
-              Live investor documents. Generated from onboarding, then updated as
-              you refine the idea.
-            </p>
-          </div>
-        </div>
-
-        {artifacts.length === 0 ? (
-          <DashboardEmptyState />
-        ) : (
-          <div className="mt-10 grid gap-5 lg:grid-cols-2">
-            {artifacts.map((artifact) => (
-              <ArtifactCard key={artifact.id} artifact={artifact} />
-            ))}
-          </div>
-        )}
-      </main>
+function DashboardSkeleton() {
+  return (
+    <div className="mx-auto w-full max-w-7xl space-y-6 px-4 py-8">
+      <div className="h-8 w-64 animate-pulse rounded bg-border/50" />
+      <div className="h-4 w-96 max-w-full animate-pulse rounded bg-border/40" />
+      <div className="h-36 animate-pulse rounded-[var(--radius-lg)] border border-border bg-surface/50" />
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+        {[0, 1, 2, 3].map((i) => (
+          <div
+            key={i}
+            className="h-24 animate-pulse rounded-[var(--radius-md)] border border-border bg-surface/40"
+          />
+        ))}
+      </div>
     </div>
   );
 }

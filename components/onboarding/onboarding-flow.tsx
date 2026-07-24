@@ -7,7 +7,11 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import {
   BUSINESS_MODELS,
+  FUNDING_OPTIONS,
   ONBOARDING_STEPS,
+  STEP_CTAS,
+  TRACTION_OPTIONS,
+  type FundingIntent,
   type OnboardingAnswers,
   type OnboardingStepId,
   type TeamSize,
@@ -20,81 +24,194 @@ import { cn } from "@/lib/utils";
 
 type PartialAnswers = Partial<OnboardingAnswers>;
 
+type Tip = { label: string; body: string };
+
+function tipForSelection(
+  step: OnboardingStepId,
+  answers: PartialAnswers,
+): Tip | null {
+  switch (step) {
+    case "about-you": {
+      const text = answers["about-you"]?.roleAndBackground?.trim();
+      if (!text || text.length < 12) return null;
+      return {
+        label: "Nice start",
+        body: "Your story is taking shape — this helps us understand the founder behind the idea.",
+      };
+    }
+    case "idea": {
+      const text = answers.idea?.description?.trim();
+      if (!text || text.length < 12) return null;
+      return {
+        label: "Interesting",
+        body: "We'll tailor your workspace analysis around this framing.",
+      };
+    }
+    case "business-specifics": {
+      const model = answers["business-specifics"]?.businessModelType;
+      if (!model) return null;
+      if (model === "Marketplace") {
+        return {
+          label: "Worth keeping in mind",
+          body: "Marketplace businesses depend heavily on both buyers and sellers. We'll keep that in mind.",
+        };
+      }
+      if (model.includes("SaaS")) {
+        return {
+          label: "Nice choice",
+          body: "Recurring revenue makes forecasting easier. Great choice.",
+        };
+      }
+      if (model === "Transaction fee") {
+        return {
+          label: "Founder Tip",
+          body: "Take-rate businesses win on volume and trust — we'll watch both.",
+        };
+      }
+      if (model === "Services / agency") {
+        return {
+          label: "Quick Note",
+          body: "Services scale with people first — we'll help you spot product leverage.",
+        };
+      }
+      return {
+        label: "Nice choice",
+        body: `${model} locked in. Next, how customers pay.`,
+      };
+    }
+    case "traction": {
+      const stage = answers.traction?.stage;
+      if (!stage) return null;
+      const tips: Record<TractionStage, Tip> = {
+        idea: {
+          label: "Founder Tip",
+          body: "Every successful startup started here.",
+        },
+        building: {
+          label: "Nice choice",
+          body: "You're in the making phase — momentum compounds from here.",
+        },
+        testing: {
+          label: "Interesting",
+          body: "Testing is where assumptions meet reality. Exciting stage.",
+        },
+        growing: {
+          label: "Quick Note",
+          body: "Growth mode — we'll lean into channels and retention.",
+        },
+        revenue: {
+          label: "Nice choice",
+          body: "Awesome. We'll focus more on growth than validation.",
+        },
+      };
+      return tips[stage];
+    }
+    case "team": {
+      const size = answers.team?.size;
+      if (!size) return null;
+      if (size === "solo") {
+        return {
+          label: "Founder Tip",
+          body: "Solo founders move fast — we'll help you show how the work gets done.",
+        };
+      }
+      return {
+        label: "Nice choice",
+        body: "A team on the journey already — that story matters.",
+      };
+    }
+    case "deal-structure": {
+      const intent = answers["deal-structure"]?.intent;
+      if (!intent) return null;
+      const tips: Record<FundingIntent, Tip> = {
+        bootstrapping: {
+          label: "Nice choice",
+          body: "Owning the upside is powerful. We'll sharpen a capital-efficient path.",
+        },
+        looking: {
+          label: "Interesting",
+          body: "We'll shape a story investors can follow — when you're ready.",
+        },
+        raising: {
+          label: "Worth keeping in mind",
+          body: "Raise mode — clarity on amount, stage, and use of funds wins trust.",
+        },
+        "too-early": {
+          label: "Quick Note",
+          body: "Perfect. Focus on the product for now — funding can wait.",
+        },
+      };
+      return tips[intent];
+    }
+    default:
+      return null;
+  }
+}
+
 function acknowledgment(
   step: OnboardingStepId,
   answers: PartialAnswers,
 ): string {
   switch (step) {
-    case "about-you": {
-      const text = answers["about-you"]?.roleAndBackground?.trim() ?? "";
-      const clip = text.length > 90 ? `${text.slice(0, 90)}…` : text;
-      return clip
-        ? `Noted — we'll hold you to that background: “${clip}”.`
-        : "Noted.";
-    }
-    case "idea": {
-      const text = answers.idea?.description?.trim() ?? "";
-      const clip = text.length > 90 ? `${text.slice(0, 90)}…` : text;
-      return clip
-        ? `Captured. We'll pressure-test this framing: “${clip}”.`
-        : "Captured.";
-    }
+    case "about-you":
+      return "💡 Nice start! Your founder story is locked in.";
+    case "idea":
+      return "Interesting idea — we'll build your workspace around this.";
     case "business-specifics": {
       const m = answers["business-specifics"]?.businessModelType;
-      const p = answers["business-specifics"]?.pricePoint;
-      return m && p
-        ? `${m} at roughly ${p} — we'll ask whether willingness-to-pay matches that.`
-        : "Business specifics locked.";
+      return m
+        ? `${m} noted. Your business profile is coming together.`
+        : "Business model locked in.";
     }
     case "traction": {
       const stage = answers.traction?.stage;
-      const labels: Record<TractionStage, string> = {
-        "pre-launch": "Pre-launch — evidence will matter more than narrative.",
-        "early-users": "Early users — we'll dig into retention, not vanity counts.",
-        revenue: "Revenue — unit economics become non-negotiable next.",
-        scaling: "Scaling — concentration and durability of growth get stress-tested.",
-      };
-      return stage ? labels[stage] : "Traction stage locked.";
+      const opt = TRACTION_OPTIONS.find((o) => o.id === stage);
+      return opt
+        ? `${opt.emoji} ${opt.label} — your journey marker is set.`
+        : "Journey stage locked in.";
     }
-    case "team": {
-      const size = answers.team?.size;
-      return size === "solo"
-        ? "Solo build — investors will ask how execution risk is covered."
-        : size
-          ? `Team of ${size} — we'll look for role coverage gaps.`
-          : "Team size locked.";
-    }
-    case "deal-structure": {
-      const d = answers["deal-structure"];
-      if (!d) return "Deal structure locked.";
-      if (!d.currentlyRaising) {
-        return "Not raising right now — we'll still shape the story for when you do.";
-      }
-      return `Raising${d.amount ? ` ~${d.amount}` : ""}${d.stage ? ` · ${d.stage}` : ""} — use of funds must be sharp.`;
-    }
+    case "team":
+      return "Team snapshot saved. Almost at the finish line.";
+    case "deal-structure":
+      return "Direction set. Your founder profile is ready.";
     default:
       return "Locked in.";
   }
 }
 
-function insightForAnswers(answers: PartialAnswers): string | null {
+function journeyNote(answers: PartialAnswers): Tip | null {
   const stage = answers.traction?.stage;
   const model = answers["business-specifics"]?.businessModelType;
   if (!stage || !model) return null;
 
-  if (stage === "pre-launch" && model.includes("SaaS")) {
-    return "Benchmark: pre-launch SaaS pitches usually fail on distribution proof, not product vision. Expect that line of questioning.";
-  }
-  if (stage === "early-users") {
-    return "Benchmark: early-user stories get discounted unless week-4 retention or paid conversion is concrete.";
+  if (stage === "idea") {
+    return {
+      label: "Founder Tip",
+      body: "Early ideas win on clarity — who pays, why now, and why you.",
+    };
   }
   if (stage === "revenue") {
-    return "Benchmark: revenue-stage founders get grilled on gross margin and payback period before growth rate.";
+    return {
+      label: "Worth keeping in mind",
+      body: "With revenue in play, unit economics and retention matter more than vision slides.",
+    };
   }
-  if (stage === "scaling") {
-    return "Benchmark: scaling claims need channel mix and concentration risk — one big customer is a yellow flag.";
+  if (model === "Marketplace") {
+    return {
+      label: "Quick Note",
+      body: "Two-sided markets need proof on both sides — we'll keep that front and center.",
+    };
   }
-  return "Benchmark: clarity on who pays and why now beats a bigger TAM slide.";
+  if (model.includes("SaaS") && (stage === "building" || stage === "testing")) {
+    return {
+      label: "Founder Tip",
+      body: "For early SaaS, distribution proof often matters more than feature depth.",
+    };
+  }
+  return {
+    label: "Worth keeping in mind",
+    body: "Clear answers here make your workspace sharper from day one.",
+  };
 }
 
 export function OnboardingFlow({ userEmail }: { userEmail?: string | null }) {
@@ -103,6 +220,7 @@ export function OnboardingFlow({ userEmail }: { userEmail?: string | null }) {
   const [ack, setAck] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
+  const [launching, setLaunching] = useState(false);
   const [accountEmail, setAccountEmail] = useState(userEmail ?? "");
 
   useEffect(() => {
@@ -130,13 +248,16 @@ export function OnboardingFlow({ userEmail }: { userEmail?: string | null }) {
 
   const step = ONBOARDING_STEPS[stepIndex];
   const progress = ((stepIndex + 1) / ONBOARDING_STEPS.length) * 100;
-  const insight =
-    stepIndex >= 3 ? insightForAnswers(answers) : null;
+  const liveTip = tipForSelection(step.id, answers);
+  const note = stepIndex >= 3 ? journeyNote(answers) : null;
 
   const canContinue = useMemo(() => {
     switch (step.id) {
       case "about-you":
-        return Boolean(answers["about-you"]?.roleAndBackground?.trim());
+        return Boolean(
+          answers["about-you"]?.roleAndBackground?.trim() &&
+            answers["about-you"]?.companionGender,
+        );
       case "idea":
         return Boolean(answers.idea?.description?.trim());
       case "business-specifics":
@@ -150,7 +271,7 @@ export function OnboardingFlow({ userEmail }: { userEmail?: string | null }) {
         return Boolean(answers.team?.size);
       case "deal-structure": {
         const d = answers["deal-structure"];
-        if (!d) return false;
+        if (!d?.intent) return false;
         if (!d.currentlyRaising) return true;
         return Boolean(d.amount?.trim() && d.stage?.trim());
       }
@@ -160,7 +281,7 @@ export function OnboardingFlow({ userEmail }: { userEmail?: string | null }) {
   }, [answers, step.id]);
 
   function advance() {
-    if (!canContinue || pending) return;
+    if (!canContinue || pending || launching) return;
     const message = acknowledgment(step.id, answers);
     setAck(message);
 
@@ -181,14 +302,42 @@ export function OnboardingFlow({ userEmail }: { userEmail?: string | null }) {
             setPending(false);
             return;
           }
-          // Hard navigation avoids stuck Next.js "Rendering…" transitions
-          window.location.assign("/chat?bootstrap=1");
+          setLaunching(true);
+          window.setTimeout(() => {
+            window.location.assign("/chat?bootstrap=1");
+          }, 2200);
         } catch (err) {
-          setError(err instanceof Error ? err.message : "Could not finish onboarding.");
+          setError(
+            err instanceof Error ? err.message : "Could not finish onboarding.",
+          );
           setPending(false);
         }
       })();
-    }, 500);
+    }, 650);
+  }
+
+  if (launching) {
+    return (
+      <div className="relative flex min-h-[100svh] items-center justify-center bg-canvas px-6">
+        <div className="animate-fade-up max-w-lg text-center">
+          <p className="text-4xl" aria-hidden>
+            🚀
+          </p>
+          <h1 className="mt-5 font-display text-3xl tracking-tight text-ink md:text-4xl">
+            Founder Profile Ready
+          </h1>
+          <p className="mt-3 text-ink-secondary">
+            We&apos;re preparing your personalized startup workspace.
+          </p>
+          <p className="mt-2 text-sm text-ink-tertiary">
+            This is where your ideas turn into strategy.
+          </p>
+          <div className="mx-auto mt-8 h-1 w-40 overflow-hidden rounded-full bg-border">
+            <div className="animate-launch-bar h-full rounded-full bg-accent" />
+          </div>
+        </div>
+      </div>
+    );
   }
 
   return (
@@ -261,28 +410,65 @@ export function OnboardingFlow({ userEmail }: { userEmail?: string | null }) {
           </h1>
           <p className="mt-2 text-ink-secondary">{step.prompt}</p>
 
-          <div
-            key={step.id}
-            className="animate-fade-up mt-8 space-y-5"
-          >
+          <div key={step.id} className="animate-fade-up mt-8 space-y-5">
             {step.id === "about-you" ? (
-              <Textarea
-                rows={5}
-                placeholder="e.g. Ex-SaaS PM, 6 years in B2B ops tooling…"
-                value={answers["about-you"]?.roleAndBackground ?? ""}
-                onChange={(e) =>
-                  setAnswers((a) => ({
-                    ...a,
-                    "about-you": { roleAndBackground: e.target.value },
-                  }))
-                }
-              />
+              <div className="space-y-5">
+                <Textarea
+                  rows={5}
+                  placeholder="I'm a software engineer passionate about helping small businesses grow."
+                  value={answers["about-you"]?.roleAndBackground ?? ""}
+                  onChange={(e) =>
+                    setAnswers((a) => ({
+                      ...a,
+                      "about-you": {
+                        roleAndBackground: e.target.value,
+                        companionGender: a["about-you"]?.companionGender,
+                      },
+                    }))
+                  }
+                />
+                <div className="space-y-2">
+                  <p className="text-sm font-medium text-ink">
+                    Your companion should look like
+                  </p>
+                  <div className="flex gap-2">
+                    {(["boy", "girl"] as const).map((g) => {
+                      const selected =
+                        answers["about-you"]?.companionGender === g;
+                      return (
+                        <button
+                          key={g}
+                          type="button"
+                          onClick={() =>
+                            setAnswers((a) => ({
+                              ...a,
+                              "about-you": {
+                                roleAndBackground:
+                                  a["about-you"]?.roleAndBackground ?? "",
+                                companionGender: g,
+                              },
+                            }))
+                          }
+                          className={cn(
+                            "flex-1 rounded-[var(--radius-md)] border px-4 py-3 text-sm font-medium capitalize transition-colors",
+                            selected
+                              ? "border-accent bg-accent-subtle text-ink"
+                              : "border-border bg-surface text-ink-secondary hover:border-ink-tertiary",
+                          )}
+                        >
+                          {g}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              </div>
             ) : null}
 
             {step.id === "idea" ? (
               <Textarea
                 rows={6}
-                placeholder="Describe the problem, who has it, and what you're building…"
+                placeholder="We're building..."
                 value={answers.idea?.description ?? ""}
                 onChange={(e) =>
                   setAnswers((a) => ({
@@ -326,20 +512,25 @@ export function OnboardingFlow({ userEmail }: { userEmail?: string | null }) {
                     );
                   })}
                 </div>
-                <Input
-                  placeholder="Rough price point (e.g. ₹999/mo, 2% take rate)"
-                  value={answers["business-specifics"]?.pricePoint ?? ""}
-                  onChange={(e) =>
-                    setAnswers((a) => ({
-                      ...a,
-                      "business-specifics": {
-                        businessModelType:
-                          a["business-specifics"]?.businessModelType ?? "",
-                        pricePoint: e.target.value,
-                      },
-                    }))
-                  }
-                />
+                <div className="space-y-2">
+                  <label className="text-sm font-medium text-ink">
+                    How do customers pay?
+                  </label>
+                  <Input
+                    placeholder="₹999/month · 2% transaction fee · ₹499 per order"
+                    value={answers["business-specifics"]?.pricePoint ?? ""}
+                    onChange={(e) =>
+                      setAnswers((a) => ({
+                        ...a,
+                        "business-specifics": {
+                          businessModelType:
+                            a["business-specifics"]?.businessModelType ?? "",
+                          pricePoint: e.target.value,
+                        },
+                      }))
+                    }
+                  />
+                </div>
               </>
             ) : null}
 
@@ -371,15 +562,24 @@ export function OnboardingFlow({ userEmail }: { userEmail?: string | null }) {
             ) : null}
           </div>
 
-          {insight ? (
+          {liveTip && !ack ? (
+            <p className="animate-fade-up mt-6 rounded-[var(--radius-md)] border border-accent/25 bg-accent-subtle/40 px-4 py-3 text-sm text-ink-secondary">
+              <span className="font-medium text-accent">{liveTip.label} · </span>
+              {liveTip.body}
+            </p>
+          ) : null}
+
+          {note && !liveTip && !ack ? (
             <p className="mt-6 rounded-[var(--radius-md)] border border-border bg-surface px-4 py-3 text-sm text-ink-secondary">
-              <span className="font-medium text-challenge">Insight · </span>
-              {insight}
+              <span className="font-medium text-challenge">{note.label} · </span>
+              {note.body}
             </p>
           ) : null}
 
           {ack ? (
-            <p className="animate-fade-up mt-6 text-sm text-accent">{ack}</p>
+            <p className="animate-fade-up mt-6 text-sm font-medium text-accent">
+              {ack}
+            </p>
           ) : null}
 
           {error ? <p className="mt-4 text-sm text-danger">{error}</p> : null}
@@ -398,11 +598,7 @@ export function OnboardingFlow({ userEmail }: { userEmail?: string | null }) {
               disabled={!canContinue || pending || Boolean(ack)}
               onClick={advance}
             >
-              {pending
-                ? "Opening advisor…"
-                : stepIndex === ONBOARDING_STEPS.length - 1
-                  ? "Continue to advisor"
-                  : "Continue"}
+              {pending ? "Launching…" : STEP_CTAS[stepIndex]}
             </Button>
           </div>
         </div>
@@ -422,40 +618,39 @@ function TractionSlider({
   value?: TractionStage;
   onChange: (v: TractionStage) => void;
 }) {
-  const stages: TractionStage[] = [
-    "pre-launch",
-    "early-users",
-    "revenue",
-    "scaling",
-  ];
-  const labels = ["Pre-launch", "Early users", "Revenue", "Scaling"];
-  const index = value ? stages.indexOf(value) : -1;
+  const stages = TRACTION_OPTIONS;
+  const index = value ? stages.findIndex((s) => s.id === value) : -1;
 
   return (
     <div className="space-y-4">
       <input
         type="range"
         min={0}
-        max={3}
+        max={stages.length - 1}
         step={1}
         value={index < 0 ? 0 : index}
-        onChange={(e) => onChange(stages[Number(e.target.value)])}
+        onChange={(e) => onChange(stages[Number(e.target.value)].id)}
         className="w-full accent-[var(--accent)]"
       />
-      <div className="grid grid-cols-4 gap-2">
-        {labels.map((label, i) => (
+      <div className="grid grid-cols-5 gap-1.5">
+        {stages.map((stage, i) => (
           <button
-            key={label}
+            key={stage.id}
             type="button"
-            onClick={() => onChange(stages[i])}
+            onClick={() => onChange(stage.id)}
             className={cn(
-              "rounded-[var(--radius-sm)] px-2 py-2 text-center text-xs transition-colors",
+              "rounded-[var(--radius-sm)] px-1.5 py-2 text-center transition-colors",
               index === i
                 ? "bg-accent-subtle font-medium text-ink"
                 : "text-ink-tertiary hover:text-ink",
             )}
           >
-            {label}
+            <span className="block text-sm" aria-hidden>
+              {stage.emoji}
+            </span>
+            <span className="mt-1 block text-[10px] leading-tight sm:text-xs">
+              {stage.label}
+            </span>
           </button>
         ))}
       </div>
@@ -504,30 +699,28 @@ function DealFields({
   value?: OnboardingAnswers["deal-structure"];
   onChange: (v: OnboardingAnswers["deal-structure"]) => void;
 }) {
-  const raising = value?.currentlyRaising;
+  const selected = value?.intent;
 
   return (
     <div className="space-y-4">
-      <div className="flex gap-2">
-        {[
-          { id: true, label: "Yes, raising" },
-          { id: false, label: "Not right now" },
-        ].map((opt) => (
+      <div className="grid gap-2">
+        {FUNDING_OPTIONS.map((opt) => (
           <button
-            key={String(opt.id)}
+            key={opt.id}
             type="button"
             onClick={() =>
               onChange({
-                currentlyRaising: opt.id,
-                amount: opt.id ? value?.amount : undefined,
-                stage: opt.id ? value?.stage : undefined,
+                intent: opt.id,
+                currentlyRaising: opt.currentlyRaising,
+                amount: opt.currentlyRaising ? value?.amount : undefined,
+                stage: opt.currentlyRaising ? value?.stage : undefined,
               })
             }
             className={cn(
-              "flex-1 rounded-[var(--radius-md)] border px-4 py-3 text-sm transition-colors",
-              raising === opt.id
+              "rounded-[var(--radius-md)] border px-4 py-3 text-left text-sm transition-colors",
+              selected === opt.id
                 ? "border-accent bg-accent-subtle text-ink"
-                : "border-border bg-surface text-ink-secondary",
+                : "border-border bg-surface text-ink-secondary hover:border-ink-tertiary",
             )}
           >
             {opt.label}
@@ -535,13 +728,14 @@ function DealFields({
         ))}
       </div>
 
-      {raising ? (
+      {value?.currentlyRaising ? (
         <div className="grid gap-3 sm:grid-cols-2">
           <Input
             placeholder="Amount (e.g. ₹1.5 Cr)"
             value={value?.amount ?? ""}
             onChange={(e) =>
               onChange({
+                intent: "raising",
                 currentlyRaising: true,
                 amount: e.target.value,
                 stage: value?.stage,
@@ -553,6 +747,7 @@ function DealFields({
             value={value?.stage ?? ""}
             onChange={(e) =>
               onChange({
+                intent: "raising",
                 currentlyRaising: true,
                 amount: value?.amount,
                 stage: e.target.value,

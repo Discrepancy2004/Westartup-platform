@@ -5,7 +5,9 @@ import {
 } from "ai";
 import { buildAdvisorSystemPrompt } from "@/lib/ai/prompts";
 import { getLanguageModelResilient } from "@/lib/ai/provider";
+import { buildHiddenDnaContext, resolveDna } from "@/lib/dna/resolve";
 import { createClient } from "@/lib/supabase/server";
+import type { OnboardingAnswers } from "@/lib/types/onboarding";
 import { isAiConfigured } from "@/lib/utils";
 
 export const maxDuration = 60;
@@ -37,9 +39,15 @@ export async function POST(request: Request) {
 
     const { data: profile } = await supabase
       .from("profiles")
-      .select("onboarding")
+      .select("onboarding, startup_dna")
       .eq("id", user.id)
       .maybeSingle();
+
+    const onboarding = profile?.onboarding as OnboardingAnswers | null;
+    const { dna, experience } = resolveDna({
+      stored: profile?.startup_dna,
+      onboarding,
+    });
 
     let conversationId: string;
     const { data: existing } = await supabase
@@ -55,7 +63,10 @@ export async function POST(request: Request) {
     } else {
       const { data: created, error } = await supabase
         .from("conversations")
-        .insert({ user_id: user.id, title: "Advisor session" })
+        .insert({
+          user_id: user.id,
+          title: `${experience.label} workspace`,
+        })
         .select("id")
         .single();
       if (error || !created) {
@@ -67,11 +78,14 @@ export async function POST(request: Request) {
       conversationId = created.id;
     }
 
-    const onboardingJson = profile?.onboarding
-      ? JSON.stringify(profile.onboarding, null, 2)
+    const onboardingJson = onboarding
+      ? JSON.stringify(onboarding, null, 2)
       : undefined;
 
-    const system = `${buildAdvisorSystemPrompt({ onboardingJson })}
+    const system = `${buildAdvisorSystemPrompt({
+      onboardingJson,
+      dnaContext: buildHiddenDnaContext(dna, onboarding),
+    })}
 
 ## Dashboard note
 Artifacts live on /dashboard. Propose updates only when confident, using the WESTARTUP_UPDATE block so the founder can Accept / Not now.`;

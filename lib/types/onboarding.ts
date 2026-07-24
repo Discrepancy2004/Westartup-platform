@@ -1,17 +1,26 @@
 import { z } from "zod";
 
 export const tractionStageSchema = z.enum([
-  "pre-launch",
-  "early-users",
+  "idea",
+  "building",
+  "testing",
+  "growing",
   "revenue",
-  "scaling",
 ]);
 
 export const teamSizeSchema = z.enum(["solo", "2-3", "4+"]);
 
+export const fundingIntentSchema = z.enum([
+  "bootstrapping",
+  "looking",
+  "raising",
+  "too-early",
+]);
+
 export const onboardingAnswersSchema = z.object({
   "about-you": z.object({
     roleAndBackground: z.string().min(1),
+    companionGender: z.enum(["boy", "girl"]).optional(),
   }),
   idea: z.object({
     description: z.string().min(1),
@@ -28,6 +37,7 @@ export const onboardingAnswersSchema = z.object({
   }),
   "deal-structure": z.object({
     currentlyRaising: z.boolean(),
+    intent: fundingIntentSchema.optional(),
     amount: z.string().optional(),
     stage: z.string().optional(),
   }),
@@ -36,6 +46,7 @@ export const onboardingAnswersSchema = z.object({
 export type OnboardingAnswers = z.infer<typeof onboardingAnswersSchema>;
 export type TractionStage = z.infer<typeof tractionStageSchema>;
 export type TeamSize = z.infer<typeof teamSizeSchema>;
+export type FundingIntent = z.infer<typeof fundingIntentSchema>;
 
 export type OnboardingStepId =
   | "about-you"
@@ -52,35 +63,83 @@ export const ONBOARDING_STEPS: {
 }[] = [
   {
     id: "about-you",
-    title: "About you",
-    prompt: "Tell us about yourself — role and relevant background.",
+    title: "Who's building this?",
+    prompt: "Every startup has a story. Tell us a little about yours.",
   },
   {
     id: "idea",
-    title: "Your idea",
-    prompt: "Tell us your idea, in your own words.",
+    title: "What's the big idea?",
+    prompt: "Imagine you're explaining it to a friend in under a minute.",
   },
   {
     id: "business-specifics",
-    title: "Business specifics",
-    prompt: "How do you make money, and at what rough price point?",
+    title: "How will this become a business?",
+    prompt: "Choose the model that best fits your startup.",
   },
   {
     id: "traction",
-    title: "Traction",
-    prompt: "Where are you today?",
+    title: "Where are you on your journey?",
+    prompt: "Pick the stage that feels most true today.",
   },
   {
     id: "team",
-    title: "Team",
-    prompt: "How many people are building this?",
+    title: "Who's on this journey with you?",
+    prompt: "Great companies are built by great teams.",
   },
   {
     id: "deal-structure",
-    title: "Deal structure",
-    prompt: "Are you currently raising?",
+    title: "What's next?",
+    prompt: "Tell us where you're heading next.",
   },
 ];
+
+export const TRACTION_OPTIONS: {
+  id: TractionStage;
+  label: string;
+  emoji: string;
+}[] = [
+  { id: "idea", label: "Idea", emoji: "💡" },
+  { id: "building", label: "Building", emoji: "🛠" },
+  { id: "testing", label: "Testing", emoji: "🚀" },
+  { id: "growing", label: "Growing", emoji: "📈" },
+  { id: "revenue", label: "Revenue", emoji: "💰" },
+];
+
+export const FUNDING_OPTIONS: {
+  id: FundingIntent;
+  label: string;
+  currentlyRaising: boolean;
+}[] = [
+  {
+    id: "bootstrapping",
+    label: "🚀 Growing with our own money",
+    currentlyRaising: false,
+  },
+  {
+    id: "looking",
+    label: "🤝 Looking for investors",
+    currentlyRaising: false,
+  },
+  {
+    id: "raising",
+    label: "💰 Already raising",
+    currentlyRaising: true,
+  },
+  {
+    id: "too-early",
+    label: "⏳ Too early to think about funding",
+    currentlyRaising: false,
+  },
+];
+
+export const STEP_CTAS = [
+  "Looks good →",
+  "Next Step →",
+  "Let's continue →",
+  "Almost there →",
+  "Next Step →",
+  "Launch My Workspace 🚀",
+] as const;
 
 export const BUSINESS_MODELS = [
   "SaaS subscription",
