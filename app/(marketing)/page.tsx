@@ -1,20 +1,28 @@
-import { Differentiator } from "@/components/marketing/differentiator";
-import { DashboardPreview } from "@/components/marketing/dashboard-preview";
+import { AudienceCards } from "@/components/marketing/audience-cards";
+import { FeaturedStrip } from "@/components/marketing/featured-strip";
+import { FinalCta } from "@/components/marketing/final-cta";
 import { Hero } from "@/components/marketing/hero";
-import { HowItWorks } from "@/components/marketing/how-it-works";
-import { PricingSection } from "@/components/marketing/pricing-section";
+import { PositioningSection } from "@/components/marketing/positioning-section";
+import { ProductShowcase } from "@/components/marketing/product-showcase";
+import { ResourcesGrid } from "@/components/marketing/resources-grid";
 import { SiteFooter } from "@/components/marketing/site-footer";
 import { SiteHeader } from "@/components/marketing/site-header";
+import { SocialProof } from "@/components/marketing/social-proof";
 
 export default function MarketingHomePage() {
   return (
     <>
       <SiteHeader />
-      <Hero />
-      <HowItWorks />
-      <Differentiator />
-      <DashboardPreview />
-      <PricingSection />
+      <main>
+        <Hero />
+        <ProductShowcase />
+        <FeaturedStrip />
+        <SocialProof />
+        <PositioningSection />
+        <AudienceCards />
+        <ResourcesGrid />
+        <FinalCta />
+      </main>
       <SiteFooter />
     </>
   );
