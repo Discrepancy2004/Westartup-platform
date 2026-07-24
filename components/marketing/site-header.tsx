@@ -2,7 +2,6 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import { ThemeToggle } from "@/components/theme/theme-toggle";
 import { cn } from "@/lib/utils";
 
 const NAV = [
@@ -49,7 +48,6 @@ export function SiteHeader() {
         </nav>
 
         <div className="flex items-center gap-2 sm:gap-2.5">
-          <ThemeToggle className="text-[var(--mkt-muted)] hover:bg-white/10 hover:text-[var(--mkt-ink)]" />
           <Link
             href="/login"
             className="hidden text-sm text-[var(--mkt-muted)] transition-colors hover:text-[var(--mkt-ink)] sm:inline"

@@ -18,7 +18,6 @@ import {
   type TractionStage,
 } from "@/lib/types/onboarding";
 import { OnboardingPreview } from "@/components/onboarding/onboarding-preview";
-import { ThemeToggle } from "@/components/theme/theme-toggle";
 import { completeOnboarding } from "@/app/(onboarding)/onboarding/actions";
 import { cn } from "@/lib/utils";
 
@@ -390,7 +389,6 @@ export function OnboardingFlow({ userEmail }: { userEmail?: string | null }) {
                 style={{ width: `${progress}%` }}
               />
             </div>
-            <ThemeToggle />
             <Link
               href="/"
               className="text-xs text-ink-secondary transition-colors hover:text-ink"

@@ -1,11 +1,9 @@
 import Link from "next/link";
 import { Reveal } from "./reveal";
-import { SectionDecor } from "./section-decor";
 
 export function FinalCta() {
   return (
     <section className="mkt-field-teal mkt-section relative overflow-hidden">
-      <SectionDecor variant="cta" tone="on-teal" />
       <div className="relative z-10 mx-auto max-w-3xl">
         <Reveal className="relative rounded-[var(--mkt-radius)] bg-white px-8 py-10 text-center shadow-[0_30px_70px_-28px_rgba(0,0,0,0.4)] md:px-12 md:py-14">
           <h2 className="font-display text-3xl font-semibold text-[var(--mkt-card-ink)] md:text-4xl">

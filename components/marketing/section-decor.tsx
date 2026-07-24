@@ -170,25 +170,7 @@ function VariantDecor({ variant }: { variant: DecorVariant }) {
       );
 
     case "cta":
-      return (
-        <>
-          <AccentBlob
-            className="right-[10%] top-[22%] size-2.5 rotate-45 rounded-sm"
-            color="peach"
-            delay={1}
-          />
-          <AccentBlob
-            className="left-[14%] bottom-[20%] h-2 w-9 rounded-full"
-            color="cream"
-            delay={2}
-          />
-          <AccentBlob
-            className="right-[18%] bottom-[16%] size-3.5 border-2 border-[var(--mkt-decor-accent)] bg-transparent"
-            color="accent"
-            delay={3}
-          />
-        </>
-      );
+      return null;
 
     case "footer":
       return (

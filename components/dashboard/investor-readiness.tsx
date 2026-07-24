@@ -46,9 +46,11 @@ function isDone(status: StepStatus) {
 export function InvestorReadinessPanel({
   artifacts,
   onboarding,
+  centered = false,
 }: {
   artifacts: ArtifactRecord[];
   onboarding?: OnboardingAnswers | null;
+  centered?: boolean;
 }) {
   const companion = useCompanionOptional();
   const readiness = useMemo(
@@ -148,11 +150,33 @@ export function InvestorReadinessPanel({
 
   return (
     <FadeIn className="mt-6 space-y-4" delay={0.05}>
-      <div className="rounded-[var(--radius-lg)] border border-border bg-surface/90 p-5 shadow-[0_1px_0_rgba(255,255,255,0.04)_inset]">
-        <div className="flex flex-wrap items-start justify-between gap-4">
-          <div className="min-w-0 flex-1 space-y-3">
-            <div className="flex items-baseline justify-between gap-3">
-              <div>
+      <div
+        className={cn(
+          "rounded-[var(--radius-lg)] border border-border bg-surface/90 p-5 shadow-[0_1px_0_rgba(255,255,255,0.04)_inset]",
+          centered && "text-center",
+        )}
+      >
+        <div
+          className={cn(
+            "flex flex-wrap items-start gap-4",
+            centered
+              ? "flex-col items-center justify-center"
+              : "justify-between",
+          )}
+        >
+          <div
+            className={cn(
+              "min-w-0 space-y-3",
+              centered ? "w-full max-w-xl" : "flex-1",
+            )}
+          >
+            <div
+              className={cn(
+                "flex items-baseline gap-3",
+                centered ? "justify-center" : "justify-between",
+              )}
+            >
+              <div className={centered ? "text-center" : undefined}>
                 <p className="text-[10px] uppercase tracking-[0.16em] text-ink-tertiary">
                   Investor Readiness
                 </p>
@@ -162,7 +186,12 @@ export function InvestorReadinessPanel({
               </div>
             </div>
             <AnimatedProgressBar percent={readiness.percent} />
-            <div className="flex flex-wrap gap-x-3 gap-y-1 text-[11px] text-ink-tertiary">
+            <div
+              className={cn(
+                "flex flex-wrap gap-x-3 gap-y-1 text-[11px] text-ink-tertiary",
+                centered && "justify-center",
+              )}
+            >
               {readiness.steps.map((s) => (
                 <span key={s.id} className="inline-flex items-center gap-1">
                   <span
@@ -193,13 +222,22 @@ export function InvestorReadinessPanel({
           <CircularReadiness percent={readiness.percent} />
         </div>
 
-        <div className="mt-5 grid gap-4 border-t border-border pt-4 lg:grid-cols-2">
+        <div
+          className={cn(
+            "mt-5 grid gap-4 border-t border-border pt-4 lg:grid-cols-2",
+            centered && "text-center",
+          )}
+        >
           <AttentionList
             items={readiness.attention}
             hint={readiness.targetHint}
             percent={readiness.percent}
+            centered={centered}
           />
-          <AchievementsRow achievements={readiness.achievements} />
+          <AchievementsRow
+            achievements={readiness.achievements}
+            centered={centered}
+          />
         </div>
       </div>
     </FadeIn>
@@ -210,22 +248,30 @@ function AttentionList({
   items,
   hint,
   percent,
+  centered = false,
 }: {
   items: { label: string; ok: boolean }[];
   hint: string;
   percent: number;
+  centered?: boolean;
 }) {
   return (
-    <div>
+    <div className={centered ? "text-center" : undefined}>
       <p className="text-[10px] uppercase tracking-[0.16em] text-ink-tertiary">
         Needs attention
       </p>
-      <ul className="mt-2 space-y-1.5 text-sm">
+      <ul
+        className={cn(
+          "mt-2 space-y-1.5 text-sm",
+          centered && "inline-block text-left",
+        )}
+      >
         {items.map((item) => (
           <li
             key={item.label}
             className={cn(
               "flex items-center gap-2",
+              centered && "justify-center",
               item.ok ? "text-ink-secondary" : "text-amber-300/90",
             )}
           >
@@ -247,13 +293,24 @@ function AttentionList({
   );
 }
 
-function AchievementsRow({ achievements }: { achievements: Achievement[] }) {
+function AchievementsRow({
+  achievements,
+  centered = false,
+}: {
+  achievements: Achievement[];
+  centered?: boolean;
+}) {
   return (
-    <div>
+    <div className={centered ? "text-center" : undefined}>
       <p className="text-[10px] uppercase tracking-[0.16em] text-ink-tertiary">
         Achievements
       </p>
-      <div className="mt-2 flex flex-wrap gap-2">
+      <div
+        className={cn(
+          "mt-2 flex flex-wrap gap-2",
+          centered && "justify-center",
+        )}
+      >
         {achievements.map((a) => (
           <motion.span
             key={a.id}
