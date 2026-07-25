@@ -39,6 +39,8 @@ export async function updateSession(request: NextRequest) {
     pathname.startsWith("/signup") ||
     pathname.startsWith("/callback");
 
+  const isResetPassword = pathname.startsWith("/reset-password");
+
   const isProtected =
     pathname.startsWith("/chat") ||
     pathname.startsWith("/dashboard") ||
@@ -52,17 +54,18 @@ export async function updateSession(request: NextRequest) {
     return NextResponse.redirect(redirectUrl);
   }
 
-  if (user && isAuthRoute && pathname !== "/callback") {
-    const { data: profile } = await supabase
-      .from("profiles")
-      .select("first_login")
-      .eq("id", user.id)
-      .maybeSingle();
-
+  if (!user && isResetPassword) {
     const redirectUrl = request.nextUrl.clone();
-    redirectUrl.pathname =
-      profile?.first_login === false ? "/chat" : "/onboarding";
+    redirectUrl.pathname = "/login";
+    redirectUrl.searchParams.set("error", "reset_session");
     return NextResponse.redirect(redirectUrl);
+  }
+
+  // Recovery session must stay on /reset-password to set a new password.
+  // Also allow /login and /signup while authenticated so "Log in" always
+  // reaches the auth form (users can switch accounts or re-auth).
+  if (user && (isResetPassword || isAuthRoute)) {
+    return supabaseResponse;
   }
 
   if (user && isProtected) {

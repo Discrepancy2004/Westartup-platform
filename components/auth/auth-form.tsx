@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -10,12 +10,13 @@ import { ensureProfile } from "@/lib/auth/ensure-profile";
 import { createClient } from "@/lib/supabase/client";
 import { isSupabaseConfigured } from "@/lib/utils";
 
-type Mode = "password" | "magic";
+type Mode = "password" | "magic" | "forgot";
 type Pending =
   | null
   | "logging-in"
   | "creating-account"
   | "sending-magic"
+  | "sending-reset"
   | "google";
 
 export function AuthForm({ variant }: { variant: "login" | "signup" }) {
@@ -24,16 +25,40 @@ export function AuthForm({ variant }: { variant: "login" | "signup" }) {
   const next = searchParams.get("next") ?? "/chat";
   const callbackError = searchParams.get("error");
 
-  const [mode, setMode] = useState<Mode>("password");
+  const [mode, setMode] = useState<Mode>(
+    callbackError === "reset_session" ? "forgot" : "password",
+  );
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(
     callbackError === "auth_callback"
       ? "Auth callback failed. Check Supabase redirect URLs include http://localhost:3000/callback"
-      : null,
+      : callbackError === "reset_session"
+        ? "That reset link expired or is invalid. Request a new one below."
+        : null,
   );
   const [message, setMessage] = useState<string | null>(null);
   const [pending, setPending] = useState<Pending>(null);
+  const [alreadySignedIn, setAlreadySignedIn] = useState(false);
+
+  useEffect(() => {
+    if (!isSupabaseConfigured() || variant !== "login") return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const supabase = createClient();
+        const {
+          data: { user },
+        } = await supabase.auth.getUser();
+        if (!cancelled) setAlreadySignedIn(Boolean(user));
+      } catch {
+        if (!cancelled) setAlreadySignedIn(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [variant]);
 
   if (!isSupabaseConfigured()) {
     return (
@@ -74,6 +99,22 @@ export function AuthForm({ variant }: { variant: "login" | "signup" }) {
 
     try {
       const supabase = createClient();
+
+      if (mode === "forgot") {
+        setPending("sending-reset");
+        const { error: resetError } = await supabase.auth.resetPasswordForEmail(
+          email,
+          {
+            redirectTo: `${window.location.origin}/callback?next=${encodeURIComponent("/reset-password")}`,
+          },
+        );
+        if (resetError) throw resetError;
+        setMessage(
+          "If an account exists for that email, we sent a password reset link.",
+        );
+        setPending(null);
+        return;
+      }
 
       if (mode === "magic") {
         setPending("sending-magic");
@@ -167,6 +208,57 @@ export function AuthForm({ variant }: { variant: "login" | "signup" }) {
     return <AuthPendingScreen pending={pending} />;
   }
 
+  if (mode === "forgot" && variant === "login") {
+    return (
+      <div className="w-full max-w-sm space-y-6 text-left">
+        <div className="space-y-1">
+          <Link href="/" className="font-display text-lg text-ink">
+            WeStartup
+          </Link>
+          <h1 className="font-display text-2xl text-ink">Forgot password</h1>
+          <p className="text-sm text-ink-secondary">
+            Enter your email and we’ll send a link to reset your password.
+          </p>
+        </div>
+
+        <form onSubmit={onSubmit} className="space-y-4">
+          <div className="space-y-1.5">
+            <Label htmlFor="email">Email</Label>
+            <Input
+              id="email"
+              type="email"
+              autoComplete="email"
+              required
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+            />
+          </div>
+
+          {error ? <p className="text-sm text-danger">{error}</p> : null}
+          {message ? <p className="text-sm text-success">{message}</p> : null}
+
+          <Button type="submit" className="w-full">
+            Send reset link
+          </Button>
+        </form>
+
+        <p className="text-center text-sm text-ink-secondary">
+          <button
+            type="button"
+            onClick={() => {
+              setMode("password");
+              setError(null);
+              setMessage(null);
+            }}
+            className="text-accent hover:underline"
+          >
+            Back to sign in
+          </button>
+        </p>
+      </div>
+    );
+  }
+
   return (
     <div className="w-full max-w-sm space-y-6 text-left">
       <div className="space-y-1">
@@ -182,6 +274,15 @@ export function AuthForm({ variant }: { variant: "login" | "signup" }) {
             : "Start with a challenging advisor, not a cheerleader."}
         </p>
       </div>
+
+      {alreadySignedIn && variant === "login" ? (
+        <div className="rounded-[var(--radius-md)] border border-border bg-surface px-4 py-3 text-sm text-ink-secondary">
+          You’re already signed in.{" "}
+          <Link href={next || "/chat"} className="font-medium text-accent hover:underline">
+            Continue to app
+          </Link>
+        </div>
+      ) : null}
 
       <div className="flex gap-2 rounded-[var(--radius-md)] border border-border p-1">
         <button
@@ -219,7 +320,22 @@ export function AuthForm({ variant }: { variant: "login" | "signup" }) {
 
         {mode === "password" ? (
           <div className="space-y-1.5">
-            <Label htmlFor="password">Password</Label>
+            <div className="flex items-center justify-between gap-3">
+              <Label htmlFor="password">Password</Label>
+              {variant === "login" ? (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setMode("forgot");
+                    setError(null);
+                    setMessage(null);
+                  }}
+                  className="text-xs font-medium text-accent hover:underline"
+                >
+                  Forgot password?
+                </button>
+              ) : null}
+            </div>
             <Input
               id="password"
               type="password"
@@ -297,6 +413,10 @@ function AuthPendingScreen({ pending }: { pending: Exclude<Pending, null> }) {
     },
     "sending-magic": {
       title: "Sending magic link…",
+      subtitle: "Check your inbox in a moment.",
+    },
+    "sending-reset": {
+      title: "Sending reset link…",
       subtitle: "Check your inbox in a moment.",
     },
     google: {

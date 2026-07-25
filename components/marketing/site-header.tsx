@@ -50,7 +50,7 @@ export function SiteHeader() {
         <div className="flex items-center gap-2 sm:gap-2.5">
           <Link
             href="/login"
-            className="hidden text-sm text-[var(--mkt-muted)] transition-colors hover:text-[var(--mkt-ink)] sm:inline"
+            className="text-sm text-[var(--mkt-muted)] transition-colors hover:text-[var(--mkt-ink)]"
           >
             Log in
           </Link>

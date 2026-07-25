@@ -37,6 +37,11 @@ export async function GET(request: Request) {
         // Profile may already exist via trigger
       }
 
+      // Password recovery must land on the reset form, even for first-login users.
+      if (next.startsWith("/reset-password")) {
+        return NextResponse.redirect(`${origin}${next}`);
+      }
+
       const { data: profile } = await supabase
         .from("profiles")
         .select("first_login")
