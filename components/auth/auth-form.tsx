@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useSearchParams } from "next/navigation";
 import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -20,7 +20,6 @@ type Pending =
   | "google";
 
 export function AuthForm({ variant }: { variant: "login" | "signup" }) {
-  const router = useRouter();
   const searchParams = useSearchParams();
   const next = searchParams.get("next") ?? "/chat";
   const callbackError = searchParams.get("error");
@@ -40,6 +39,7 @@ export function AuthForm({ variant }: { variant: "login" | "signup" }) {
   const [message, setMessage] = useState<string | null>(null);
   const [pending, setPending] = useState<Pending>(null);
   const [alreadySignedIn, setAlreadySignedIn] = useState(false);
+  const [applyAsExpert, setApplyAsExpert] = useState(false);
 
   useEffect(() => {
     if (!isSupabaseConfigured() || variant !== "login") return;
@@ -82,14 +82,15 @@ export function AuthForm({ variant }: { variant: "login" | "signup" }) {
     );
   }
 
-  async function finishAuth() {
+  async function finishAuth(opts?: { expertIntent?: boolean }) {
     const profile = await ensureProfile();
     if (!profile.ok) {
       throw new Error(profile.error);
     }
-    const destination = profile.firstLogin ? "/onboarding" : next || "/chat";
-    router.replace(destination);
-    router.refresh();
+    const expertIntent = opts?.expertIntent ?? applyAsExpert;
+    const destination = expertIntent ? "/expert/apply" : profile.home;
+    // Hard navigation avoids soft-nav hangs (spinner stuck on "Logging in…").
+    window.location.assign(destination);
   }
 
   async function onSubmit(e: React.FormEvent) {
@@ -116,12 +117,15 @@ export function AuthForm({ variant }: { variant: "login" | "signup" }) {
         return;
       }
 
+      const postAuthNext =
+        variant === "signup" && applyAsExpert ? "/expert/apply" : next;
+
       if (mode === "magic") {
         setPending("sending-magic");
         const { error: magicError } = await supabase.auth.signInWithOtp({
           email,
           options: {
-            emailRedirectTo: `${window.location.origin}/callback?next=${encodeURIComponent(next)}`,
+            emailRedirectTo: `${window.location.origin}/callback?next=${encodeURIComponent(postAuthNext)}`,
           },
         });
         if (magicError) throw magicError;
@@ -136,7 +140,7 @@ export function AuthForm({ variant }: { variant: "login" | "signup" }) {
           email,
           password,
           options: {
-            emailRedirectTo: `${window.location.origin}/callback?next=${encodeURIComponent(next)}`,
+            emailRedirectTo: `${window.location.origin}/callback?next=${encodeURIComponent(postAuthNext)}`,
           },
         });
         if (signUpError) throw signUpError;
@@ -144,7 +148,7 @@ export function AuthForm({ variant }: { variant: "login" | "signup" }) {
         // Email confirmation disabled → session present → continue
         if (data.session) {
           setPending("logging-in");
-          await finishAuth();
+          await finishAuth({ expertIntent: applyAsExpert });
           return;
         }
 
@@ -154,7 +158,7 @@ export function AuthForm({ variant }: { variant: "login" | "signup" }) {
 
         if (!signInError && signedIn.session) {
           setPending("logging-in");
-          await finishAuth();
+          await finishAuth({ expertIntent: applyAsExpert });
           return;
         }
 
@@ -171,7 +175,7 @@ export function AuthForm({ variant }: { variant: "login" | "signup" }) {
         password,
       });
       if (signInError) throw signInError;
-      await finishAuth();
+      await finishAuth({ expertIntent: false });
       // Keep the logging-in screen until navigation completes.
     } catch (err) {
       const raw = err instanceof Error ? err.message : "Something went wrong.";
@@ -185,10 +189,12 @@ export function AuthForm({ variant }: { variant: "login" | "signup" }) {
     setPending("google");
     try {
       const supabase = createClient();
+      const postAuthNext =
+        variant === "signup" && applyAsExpert ? "/expert/apply" : next;
       const { error: oauthError } = await supabase.auth.signInWithOAuth({
         provider: "google",
         options: {
-          redirectTo: `${window.location.origin}/callback?next=${encodeURIComponent(next)}`,
+          redirectTo: `${window.location.origin}/callback?next=${encodeURIComponent(postAuthNext)}`,
           queryParams: { prompt: "select_account" },
         },
       });
@@ -348,6 +354,23 @@ export function AuthForm({ variant }: { variant: "login" | "signup" }) {
               onChange={(e) => setPassword(e.target.value)}
             />
           </div>
+        ) : null}
+
+        {variant === "signup" ? (
+          <label className="flex cursor-pointer items-start gap-2.5 text-sm text-ink-secondary">
+            <input
+              type="checkbox"
+              className="mt-0.5 size-4 shrink-0 rounded border-border accent-[var(--accent)]"
+              checked={applyAsExpert}
+              onChange={(e) => setApplyAsExpert(e.target.checked)}
+            />
+            <span>
+              I&apos;d like to apply as an Industry Expert
+              <span className="mt-0.5 block text-xs text-ink-tertiary">
+                Requires admin approval. You&apos;ll submit details next.
+              </span>
+            </span>
+          </label>
         ) : null}
 
         {error ? <p className="text-sm text-danger">{error}</p> : null}

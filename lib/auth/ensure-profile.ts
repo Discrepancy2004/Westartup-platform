@@ -2,6 +2,9 @@
 
 import { createClient } from "@/lib/supabase/server";
 import { createServiceClient } from "@/lib/supabase/admin";
+import { homePathForAccess } from "@/lib/auth/access";
+import { loadAccessSnapshot } from "@/lib/auth/load-access";
+import { BOOTSTRAP_ADMIN_EMAIL } from "@/lib/types/roles";
 
 /** Ensure a profiles row exists after auth (covers missing DB trigger). */
 export async function ensureProfile() {
@@ -12,26 +15,42 @@ export async function ensureProfile() {
 
   if (!user) return { ok: false as const, error: "Not signed in" };
 
-  const { data: existing } = await supabase
-    .from("profiles")
-    .select("id, first_login")
-    .eq("id", user.id)
-    .maybeSingle();
+  const isBootstrapAdmin =
+    (user.email ?? "").toLowerCase() === BOOTSTRAP_ADMIN_EMAIL.toLowerCase();
 
-  if (existing) {
+  // One round-trip: profile + application in parallel
+  let access = await loadAccessSnapshot(user.id, supabase);
+
+  if (access) {
+    if (isBootstrapAdmin && access.role !== "admin") {
+      try {
+        const admin = createServiceClient();
+        await admin
+          .from("profiles")
+          .update({ role: "admin", email: user.email })
+          .eq("id", user.id);
+        access = { ...access, role: "admin" };
+      } catch {
+        // Trigger / RLS may already handle this
+      }
+    }
+
     return {
       ok: true as const,
-      firstLogin: existing.first_login ?? true,
+      firstLogin: access.firstLogin,
+      home: homePathForAccess(access),
     };
   }
 
-  // Prefer service role so insert works even if RLS blocks client insert
+  const role = isBootstrapAdmin ? "admin" : "founder";
+
   try {
     const admin = createServiceClient();
     const { error } = await admin.from("profiles").upsert({
       id: user.id,
       email: user.email,
       first_login: true,
+      role,
     });
     if (error) return { ok: false as const, error: error.message };
   } catch {
@@ -39,9 +58,19 @@ export async function ensureProfile() {
       id: user.id,
       email: user.email,
       first_login: true,
+      role,
     });
     if (error) return { ok: false as const, error: error.message };
   }
 
-  return { ok: true as const, firstLogin: true };
+  return {
+    ok: true as const,
+    firstLogin: true,
+    home: homePathForAccess({
+      role,
+      firstLogin: true,
+      applicationStatus: null,
+      founderContinuedAt: null,
+    }),
+  };
 }
