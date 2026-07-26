@@ -4,11 +4,15 @@ import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
-import { requestExpertReview } from "@/app/(expert)/actions";
+import {
+  markReviewComplete,
+  requestExpertReview,
+} from "@/app/(expert)/actions";
 import { ReviewChat } from "@/components/expert/review-chat";
 
 type AssignmentView = {
   id: string;
+  status: "active" | "completed";
   expert_email: string | null;
   messages: {
     id: string;
@@ -38,7 +42,8 @@ export function FounderReviewPanel({
           Industry expert review
         </h2>
         <p className="mt-1 text-sm text-ink-secondary">
-          Request a human review. An admin assigns an expert, then you can chat.
+          Request a human review. Chat with your expert anytime — including after
+          the review is marked complete.
         </p>
       </div>
 
@@ -79,9 +84,35 @@ export function FounderReviewPanel({
 
       {assignments.map((a) => (
         <div key={a.id} className="space-y-2">
-          <p className="text-sm text-ink">
-            Expert: {a.expert_email ?? "Assigned"}
-          </p>
+          <div className="flex items-center justify-between gap-2">
+            <p className="text-sm text-ink">
+              Expert: {a.expert_email ?? "Assigned"}
+              {a.status === "completed" ? (
+                <span className="ml-2 text-xs text-success">Completed</span>
+              ) : null}
+            </p>
+            {a.status === "active" ? (
+              <Button
+                type="button"
+                variant="ghost"
+                className="text-xs"
+                disabled={pending}
+                onClick={() => {
+                  setError(null);
+                  startTransition(async () => {
+                    const result = await markReviewComplete(a.id);
+                    if (!result.ok) {
+                      setError(result.error);
+                      return;
+                    }
+                    router.refresh();
+                  });
+                }}
+              >
+                Mark complete
+              </Button>
+            ) : null}
+          </div>
           <ReviewChat
             assignmentId={a.id}
             currentUserId={userId}
@@ -90,6 +121,7 @@ export function FounderReviewPanel({
           />
         </div>
       ))}
+      {error ? <p className="text-xs text-danger">{error}</p> : null}
     </section>
   );
 }

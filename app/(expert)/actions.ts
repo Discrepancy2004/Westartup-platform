@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
+import { notifyUser } from "@/lib/notifications/create";
 
 export async function submitExpertApplication(formData: FormData) {
   const supabase = await createClient();
@@ -109,6 +110,19 @@ export async function sendReviewMessage(formData: FormData) {
     return { ok: false as const, error: "Message required" };
   }
 
+  const { data: assignment } = await supabase
+    .from("review_assignments")
+    .select("id, founder_id, expert_id")
+    .eq("id", assignmentId)
+    .maybeSingle();
+
+  if (
+    !assignment ||
+    (assignment.founder_id !== user.id && assignment.expert_id !== user.id)
+  ) {
+    return { ok: false as const, error: "Assignment not found" };
+  }
+
   const { error } = await supabase.from("review_messages").insert({
     assignment_id: assignmentId,
     sender_id: user.id,
@@ -117,8 +131,122 @@ export async function sendReviewMessage(formData: FormData) {
 
   if (error) return { ok: false as const, error: error.message };
 
+  const isFounder = assignment.founder_id === user.id;
+  const recipientId = isFounder
+    ? assignment.expert_id
+    : assignment.founder_id;
+
+  await notifyUser({
+    userId: recipientId,
+    type: isFounder ? "founder_replied" : "expert_replied",
+    title: isFounder ? "Founder replied" : "Expert replied",
+    body: content.slice(0, 120),
+    link: isFounder
+      ? `/expert/assignments/${assignmentId}?tab=chat`
+      : `/dashboard`,
+  });
+
   revalidatePath("/expert");
+  revalidatePath(`/expert/assignments/${assignmentId}`);
   revalidatePath("/dashboard");
+  revalidatePath("/expert/notifications");
+  return { ok: true as const };
+}
+
+export async function markReviewComplete(assignmentId: string) {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) {
+    return { ok: false as const, error: "Not signed in" };
+  }
+
+  const { data: assignment } = await supabase
+    .from("review_assignments")
+    .select("id, founder_id, expert_id, status")
+    .eq("id", assignmentId)
+    .maybeSingle();
+
+  if (
+    !assignment ||
+    (assignment.founder_id !== user.id && assignment.expert_id !== user.id)
+  ) {
+    return { ok: false as const, error: "Assignment not found" };
+  }
+
+  if (assignment.status === "completed") {
+    return { ok: true as const };
+  }
+
+  const { error } = await supabase
+    .from("review_assignments")
+    .update({ status: "completed" })
+    .eq("id", assignmentId);
+
+  if (error) return { ok: false as const, error: error.message };
+
+  await notifyUser({
+    userId: assignment.founder_id,
+    type: "review_completed",
+    title: "Review marked complete",
+    body: "You can keep chatting with your expert anytime.",
+    link: "/dashboard",
+  });
+  await notifyUser({
+    userId: assignment.expert_id,
+    type: "review_completed",
+    title: "Review marked complete",
+    body: "Chat stays open if the founder needs you.",
+    link: `/expert/assignments/${assignmentId}`,
+  });
+
+  revalidatePath("/expert");
+  revalidatePath(`/expert/assignments/${assignmentId}`);
+  revalidatePath("/dashboard");
+  revalidatePath("/expert/notifications");
+  return { ok: true as const };
+}
+
+export async function markNotificationRead(notificationId: string) {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) {
+    return { ok: false as const, error: "Not signed in" };
+  }
+
+  const { error } = await supabase
+    .from("notifications")
+    .update({ read_at: new Date().toISOString() })
+    .eq("id", notificationId)
+    .eq("user_id", user.id);
+
+  if (error) return { ok: false as const, error: error.message };
+
+  revalidatePath("/expert/notifications");
+  return { ok: true as const };
+}
+
+export async function markAllNotificationsRead() {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) {
+    return { ok: false as const, error: "Not signed in" };
+  }
+
+  const { error } = await supabase
+    .from("notifications")
+    .update({ read_at: new Date().toISOString() })
+    .eq("user_id", user.id)
+    .is("read_at", null);
+
+  if (error) return { ok: false as const, error: error.message };
+
+  revalidatePath("/expert/notifications");
   return { ok: true as const };
 }
 
@@ -141,7 +269,10 @@ export async function requestExpertReview(formData: FormData) {
     .maybeSingle();
 
   if (open) {
-    return { ok: false as const, error: "You already have a pending review request" };
+    return {
+      ok: false as const,
+      error: "You already have a pending review request",
+    };
   }
 
   const { error } = await supabase.from("review_requests").insert({

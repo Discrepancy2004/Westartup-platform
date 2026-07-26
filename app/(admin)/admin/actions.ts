@@ -164,6 +164,18 @@ export async function assignExpertToRequest(params: {
 
   if (statusError) return { ok: false as const, error: statusError.message };
 
+  try {
+    await admin.rpc("create_notification", {
+      p_user_id: params.expertId,
+      p_type: "new_assignment",
+      p_title: "New assignment",
+      p_body: "A founder was assigned to you for review.",
+      p_link: `/expert`,
+    });
+  } catch {
+    // Non-blocking
+  }
+
   revalidatePath("/admin");
   revalidatePath("/admin/experts/reviews");
   revalidatePath("/admin/experts/assignments");
@@ -244,6 +256,18 @@ export async function assignFounderToExpert(params: {
   if (assignError) {
     await admin.from("review_requests").delete().eq("id", request.id);
     return { ok: false as const, error: assignError.message };
+  }
+
+  try {
+    await admin.rpc("create_notification", {
+      p_user_id: params.expertId,
+      p_type: "new_assignment",
+      p_title: "New assignment",
+      p_body: "A founder was assigned to you for review.",
+      p_link: `/expert`,
+    });
+  } catch {
+    // Non-blocking
   }
 
   revalidatePath("/admin");

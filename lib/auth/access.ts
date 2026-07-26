@@ -10,7 +10,7 @@ export type AccessSnapshot = {
 /** Resolve post-auth home path from role + application state. */
 export function homePathForAccess(access: AccessSnapshot): string {
   if (access.role === "admin") return "/admin";
-  if (access.role === "expert") return "/expert";
+  if (access.role === "expert") return "/expert/dna";
 
   if (access.applicationStatus === "pending") return "/expert/pending";
   if (

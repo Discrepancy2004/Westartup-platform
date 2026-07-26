@@ -1,5 +1,5 @@
-import { KnowledgeBasePanel } from "@/components/admin/knowledge-base-panel";
+import { redirect } from "next/navigation";
 
-export default function AdminKnowledgePage() {
-  return <KnowledgeBasePanel />;
+export default function AdminKnowledgeIndexPage() {
+  redirect("/admin/knowledge/dna");
 }

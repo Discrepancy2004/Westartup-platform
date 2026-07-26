@@ -28,7 +28,7 @@ export async function sendExpertApprovedEmail(params: {
         html: `
           <p>Hi ${escapeHtml(params.fullName)},</p>
           <p>Your Industry Expert application has been approved.</p>
-          <p><a href="${appUrl}/expert">Open your expert dashboard</a></p>
+          <p><a href="${appUrl}/expert/dna">Open Expert DNA Studio</a></p>
           <p>— WeStartup</p>
         `,
       }),

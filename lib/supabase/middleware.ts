@@ -134,7 +134,7 @@ export async function updateSession(request: NextRequest) {
     if (access.role === "expert") {
       if (!isExpertPath(pathname) || onPending || onRejected || onApply) {
         const redirectUrl = request.nextUrl.clone();
-        redirectUrl.pathname = "/expert";
+        redirectUrl.pathname = "/expert/dna";
         return NextResponse.redirect(redirectUrl);
       }
       return supabaseResponse;

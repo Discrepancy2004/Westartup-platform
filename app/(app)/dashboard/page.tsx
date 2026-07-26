@@ -13,6 +13,7 @@ export default async function DashboardPage() {
     pendingRequest: { id: string; note: string | null } | null;
     assignments: {
       id: string;
+      status: "active" | "completed";
       expert_email: string | null;
       messages: {
         id: string;
@@ -51,7 +52,7 @@ export default async function DashboardPage() {
             .from("review_assignments")
             .select("id, expert_id, status")
             .eq("founder_id", user.id)
-            .eq("status", "active")
+            .in("status", ["active", "completed"])
             .order("created_at", { ascending: false }),
         ]);
         artifacts = (data as ArtifactRecord[] | null) ?? [];
@@ -106,6 +107,9 @@ export default async function DashboardPage() {
             : null,
           assignments: assignments.map((a) => ({
             id: a.id,
+            status: (a.status === "completed" ? "completed" : "active") as
+              | "active"
+              | "completed",
             expert_email: emailById.get(a.expert_id) ?? null,
             messages: messagesByAssignment.get(a.id) ?? [],
           })),

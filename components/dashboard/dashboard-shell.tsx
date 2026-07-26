@@ -63,6 +63,7 @@ export function DashboardShell({
     pendingRequest: { id: string; note: string | null } | null;
     assignments: {
       id: string;
+      status: "active" | "completed";
       expert_email: string | null;
       messages: {
         id: string;
@@ -229,6 +230,7 @@ function OverviewBody({
     pendingRequest: { id: string; note: string | null } | null;
     assignments: {
       id: string;
+      status: "active" | "completed";
       expert_email: string | null;
       messages: {
         id: string;
