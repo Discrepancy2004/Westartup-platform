@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -16,6 +16,66 @@ export function ResetPasswordForm() {
   const [error, setError] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  const [ready, setReady] = useState(false);
+  const [checking, setChecking] = useState(true);
+
+  useEffect(() => {
+    if (!isSupabaseConfigured()) {
+      setChecking(false);
+      return;
+    }
+
+    const supabase = createClient();
+    let cancelled = false;
+
+    async function ensureSession() {
+      // Implicit/hash recovery tokens (older email links)
+      if (typeof window !== "undefined" && window.location.hash) {
+        const hashParams = new URLSearchParams(
+          window.location.hash.replace(/^#/, ""),
+        );
+        if (hashParams.get("type") === "recovery" || hashParams.get("access_token")) {
+          // getSession parses the hash via the client
+          await supabase.auth.getSession();
+          window.history.replaceState(null, "", "/reset-password");
+        }
+      }
+
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+
+      if (cancelled) return;
+
+      if (session) {
+        setReady(true);
+        setChecking(false);
+        return;
+      }
+
+      setError(
+        "This reset link is missing a valid session. Request a new password reset from the login page.",
+      );
+      setChecking(false);
+    }
+
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((event, session) => {
+      if (event === "PASSWORD_RECOVERY" || (event === "SIGNED_IN" && session)) {
+        setReady(true);
+        setError(null);
+        setChecking(false);
+      }
+    });
+
+    void ensureSession();
+
+    return () => {
+      cancelled = true;
+      subscription.unsubscribe();
+    };
+  }, []);
 
   if (!isSupabaseConfigured()) {
     return (
@@ -66,6 +126,18 @@ export function ResetPasswordForm() {
     }
   }
 
+  if (checking) {
+    return (
+      <div className="w-full max-w-sm space-y-3 py-8 text-center">
+        <span
+          className="inline-block size-9 animate-spin rounded-full border-2 border-border border-t-accent"
+          aria-hidden
+        />
+        <p className="text-sm text-ink-secondary">Preparing reset session…</p>
+      </div>
+    );
+  }
+
   return (
     <div className="w-full max-w-sm space-y-6 text-left">
       <div className="space-y-1">
@@ -78,39 +150,51 @@ export function ResetPasswordForm() {
         </p>
       </div>
 
-      <form onSubmit={onSubmit} className="space-y-4">
-        <div className="space-y-1.5">
-          <Label htmlFor="password">New password</Label>
-          <Input
-            id="password"
-            type="password"
-            autoComplete="new-password"
-            required
-            minLength={8}
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-          />
+      {!ready ? (
+        <div className="space-y-4">
+          {error ? <p className="text-sm text-danger">{error}</p> : null}
+          <Link
+            href="/login"
+            className="inline-block text-sm font-medium text-accent hover:underline"
+          >
+            Request a new reset link
+          </Link>
         </div>
-        <div className="space-y-1.5">
-          <Label htmlFor="confirm">Confirm password</Label>
-          <Input
-            id="confirm"
-            type="password"
-            autoComplete="new-password"
-            required
-            minLength={8}
-            value={confirm}
-            onChange={(e) => setConfirm(e.target.value)}
-          />
-        </div>
+      ) : (
+        <form onSubmit={onSubmit} className="space-y-4">
+          <div className="space-y-1.5">
+            <Label htmlFor="password">New password</Label>
+            <Input
+              id="password"
+              type="password"
+              autoComplete="new-password"
+              required
+              minLength={8}
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+            />
+          </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="confirm">Confirm password</Label>
+            <Input
+              id="confirm"
+              type="password"
+              autoComplete="new-password"
+              required
+              minLength={8}
+              value={confirm}
+              onChange={(e) => setConfirm(e.target.value)}
+            />
+          </div>
 
-        {error ? <p className="text-sm text-danger">{error}</p> : null}
-        {message ? <p className="text-sm text-success">{message}</p> : null}
+          {error ? <p className="text-sm text-danger">{error}</p> : null}
+          {message ? <p className="text-sm text-success">{message}</p> : null}
 
-        <Button type="submit" className="w-full" disabled={saving}>
-          {saving ? "Updating…" : "Update password"}
-        </Button>
-      </form>
+          <Button type="submit" className="w-full" disabled={saving}>
+            {saving ? "Updating…" : "Update password"}
+          </Button>
+        </form>
+      )}
 
       <p className="text-center text-sm text-ink-secondary">
         <Link href="/login" className="text-accent hover:underline">

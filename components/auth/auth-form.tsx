@@ -110,7 +110,9 @@ export function AuthForm({ variant }: { variant: "login" | "signup" }) {
         const { error: resetError } = await supabase.auth.resetPasswordForEmail(
           email,
           {
-            redirectTo: `${window.location.origin}/callback?next=${encodeURIComponent("/reset-password")}`,
+            // Must be an allowlisted path with no query string. Query params on
+            // redirectTo are often stripped → Supabase falls back to Site URL (/).
+            redirectTo: `${window.location.origin}/auth/reset`,
           },
         );
         if (resetError) throw resetError;

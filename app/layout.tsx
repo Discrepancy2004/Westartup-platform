@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { Geist_Mono, Newsreader, Plus_Jakarta_Sans } from "next/font/google";
+import { RecoveryRedirect } from "@/components/auth/recovery-redirect";
 import { ThemeProvider } from "@/components/theme/theme-provider";
 import "./globals.css";
 
@@ -58,7 +59,10 @@ export default function RootLayout({
         <script dangerouslySetInnerHTML={{ __html: themeInitScript }} />
       </head>
       <body className="min-h-full flex flex-col font-sans">
-        <ThemeProvider>{children}</ThemeProvider>
+        <ThemeProvider>
+          <RecoveryRedirect />
+          {children}
+        </ThemeProvider>
       </body>
     </html>
   );
