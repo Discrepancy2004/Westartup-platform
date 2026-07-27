@@ -16,6 +16,7 @@ import {
 import { PitchDeckView } from "@/components/dashboard/pitch-deck-view";
 import { ProjectBoardView } from "@/components/dashboard/project-board-view";
 import { ValuationView } from "@/components/dashboard/valuation-view";
+import { FounderReviewPanel } from "@/components/dashboard/founder-review-panel";
 import { useDna } from "@/components/dna/dna-provider";
 import { DnaWelcome } from "@/components/dna/dna-ui";
 import { resolveKpiValues } from "@/lib/dna/kpi";
@@ -53,9 +54,25 @@ function parseView(raw: string | null): ViewId {
 export function DashboardShell({
   artifacts,
   onboarding = null,
+  review = null,
 }: {
   artifacts: ArtifactRecord[];
   onboarding?: OnboardingAnswers | null;
+  review?: {
+    userId: string;
+    pendingRequest: { id: string; note: string | null } | null;
+    assignments: {
+      id: string;
+      status: "active" | "completed";
+      expert_email: string | null;
+      messages: {
+        id: string;
+        sender_id: string;
+        content: string;
+        created_at: string;
+      }[];
+    }[];
+  } | null;
 }) {
   const { experience } = useDna();
   const searchParams = useSearchParams();
@@ -173,6 +190,7 @@ export function DashboardShell({
               byKind={byKind}
               kpis={kpis}
               onboarding={onboarding}
+              review={review}
             />
           ) : null}
           {activeView === "board" ? (
@@ -201,11 +219,27 @@ function OverviewBody({
   byKind,
   kpis,
   onboarding,
+  review,
 }: {
   artifacts: ArtifactRecord[];
   byKind: Map<ArtifactKind, ArtifactRecord>;
   kpis: ReturnType<typeof resolveKpiValues>;
   onboarding?: OnboardingAnswers | null;
+  review?: {
+    userId: string;
+    pendingRequest: { id: string; note: string | null } | null;
+    assignments: {
+      id: string;
+      status: "active" | "completed";
+      expert_email: string | null;
+      messages: {
+        id: string;
+        sender_id: string;
+        content: string;
+        created_at: string;
+      }[];
+    }[];
+  } | null;
 }) {
   const { experience } = useDna();
 
@@ -222,6 +256,16 @@ function OverviewBody({
           </p>
         </div>
       </FadeIn>
+
+      {review ? (
+        <div className="mx-auto mt-8 max-w-2xl text-left">
+          <FounderReviewPanel
+            userId={review.userId}
+            pendingRequest={review.pendingRequest}
+            assignments={review.assignments}
+          />
+        </div>
+      ) : null}
 
       {artifacts.length > 0 ? (
         <InvestorReadinessPanel

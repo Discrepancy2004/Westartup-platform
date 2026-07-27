@@ -1,12 +1,32 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { createServiceClient } from "@/lib/supabase/admin";
+import { homePathForAccess } from "@/lib/auth/access";
+import { BOOTSTRAP_ADMIN_EMAIL } from "@/lib/types/roles";
+import type { ExpertApplicationStatus, PlatformRole } from "@/lib/types/roles";
+
+function asRole(value: string | null | undefined): PlatformRole {
+  if (value === "admin" || value === "expert" || value === "founder") {
+    return value;
+  }
+  return "founder";
+}
+
+function asAppStatus(
+  value: string | null | undefined,
+): ExpertApplicationStatus | null {
+  if (value === "pending" || value === "approved" || value === "rejected") {
+    return value;
+  }
+  return null;
+}
 
 export async function GET(request: Request) {
   const { searchParams, origin } = new URL(request.url);
   const code = searchParams.get("code");
   const next = searchParams.get("next") ?? "/chat";
-  const oauthError = searchParams.get("error_description") ?? searchParams.get("error");
+  const oauthError =
+    searchParams.get("error_description") ?? searchParams.get("error");
 
   if (oauthError) {
     return NextResponse.redirect(
@@ -18,20 +38,30 @@ export async function GET(request: Request) {
     const supabase = await createClient();
     const { data, error } = await supabase.auth.exchangeCodeForSession(code);
     if (!error && data.user) {
+      const email = data.user.email ?? null;
+      const isBootstrapAdmin =
+        (email ?? "").toLowerCase() === BOOTSTRAP_ADMIN_EMAIL.toLowerCase();
+
       try {
         const admin = createServiceClient();
         const { data: existing } = await admin
           .from("profiles")
-          .select("id")
+          .select("id, role")
           .eq("id", data.user.id)
           .maybeSingle();
 
         if (!existing) {
           await admin.from("profiles").insert({
             id: data.user.id,
-            email: data.user.email,
+            email,
             first_login: true,
+            role: isBootstrapAdmin ? "admin" : "founder",
           });
+        } else if (isBootstrapAdmin && existing.role !== "admin") {
+          await admin
+            .from("profiles")
+            .update({ role: "admin", email })
+            .eq("id", data.user.id);
         }
       } catch {
         // Profile may already exist via trigger
@@ -42,18 +72,30 @@ export async function GET(request: Request) {
         return NextResponse.redirect(`${origin}${next}`);
       }
 
+      // Expert signup intent — collect details before founder onboarding
+      if (next.startsWith("/expert/apply")) {
+        return NextResponse.redirect(`${origin}/expert/apply`);
+      }
+
       const { data: profile } = await supabase
         .from("profiles")
-        .select("first_login, role")
+        .select("role, first_login")
         .eq("id", data.user.id)
         .maybeSingle();
 
-      let destination = "/onboarding";
-      if (profile?.first_login === false) {
-        if (profile.role === "admin") destination = "/admin";
-        else if (next.startsWith("/")) destination = next;
-        else destination = "/chat";
-      }
+      const { data: application } = await supabase
+        .from("expert_applications")
+        .select("status, founder_continued_at")
+        .eq("user_id", data.user.id)
+        .maybeSingle();
+
+      const destination = homePathForAccess({
+        role: asRole(profile?.role),
+        firstLogin: profile?.first_login ?? true,
+        applicationStatus: asAppStatus(application?.status),
+        founderContinuedAt: application?.founder_continued_at ?? null,
+      });
+
       return NextResponse.redirect(`${origin}${destination}`);
     }
   }

@@ -8,6 +8,21 @@ import type { OnboardingAnswers } from "@/lib/types/onboarding";
 export default async function DashboardPage() {
   let artifacts: ArtifactRecord[] = [];
   let onboarding: OnboardingAnswers | null = null;
+  let review: {
+    userId: string;
+    pendingRequest: { id: string; note: string | null } | null;
+    assignments: {
+      id: string;
+      status: "active" | "completed";
+      expert_email: string | null;
+      messages: {
+        id: string;
+        sender_id: string;
+        content: string;
+        created_at: string;
+      }[];
+    }[];
+  } | null = null;
 
   if (isSupabaseConfigured()) {
     try {
@@ -16,7 +31,7 @@ export default async function DashboardPage() {
         data: { user },
       } = await supabase.auth.getUser();
       if (user) {
-        const [{ data }, profileRes] = await Promise.all([
+        const [{ data }, profileRes, pendingRes, assignRes] = await Promise.all([
           supabase
             .from("artifacts")
             .select("id, kind, title, summary, chart_data, updated_at, source")
@@ -27,20 +42,93 @@ export default async function DashboardPage() {
             .select("onboarding")
             .eq("id", user.id)
             .maybeSingle(),
+          supabase
+            .from("review_requests")
+            .select("id, note")
+            .eq("founder_id", user.id)
+            .eq("status", "pending")
+            .maybeSingle(),
+          supabase
+            .from("review_assignments")
+            .select("id, expert_id, status")
+            .eq("founder_id", user.id)
+            .in("status", ["active", "completed"])
+            .order("created_at", { ascending: false }),
         ]);
         artifacts = (data as ArtifactRecord[] | null) ?? [];
         onboarding =
           (profileRes.data?.onboarding as OnboardingAnswers | null) ?? null;
+
+        const assignments = assignRes.data ?? [];
+        const expertIds = [...new Set(assignments.map((a) => a.expert_id))];
+        const emailById = new Map<string, string | null>();
+        if (expertIds.length > 0) {
+          const { data: experts } = await supabase
+            .from("profiles")
+            .select("id, email")
+            .in("id", expertIds);
+          for (const e of experts ?? []) {
+            emailById.set(e.id, e.email);
+          }
+        }
+
+        const assignmentIds = assignments.map((a) => a.id);
+        const messagesByAssignment = new Map<
+          string,
+          {
+            id: string;
+            sender_id: string;
+            content: string;
+            created_at: string;
+          }[]
+        >();
+        if (assignmentIds.length > 0) {
+          const { data: messages } = await supabase
+            .from("review_messages")
+            .select("id, assignment_id, sender_id, content, created_at")
+            .in("assignment_id", assignmentIds)
+            .order("created_at", { ascending: true });
+          for (const m of messages ?? []) {
+            const list = messagesByAssignment.get(m.assignment_id) ?? [];
+            list.push({
+              id: m.id,
+              sender_id: m.sender_id,
+              content: m.content,
+              created_at: m.created_at,
+            });
+            messagesByAssignment.set(m.assignment_id, list);
+          }
+        }
+
+        review = {
+          userId: user.id,
+          pendingRequest: pendingRes.data
+            ? { id: pendingRes.data.id, note: pendingRes.data.note }
+            : null,
+          assignments: assignments.map((a) => ({
+            id: a.id,
+            status: (a.status === "completed" ? "completed" : "active") as
+              | "active"
+              | "completed",
+            expert_email: emailById.get(a.expert_id) ?? null,
+            messages: messagesByAssignment.get(a.id) ?? [],
+          })),
+        };
       }
     } catch {
       artifacts = [];
       onboarding = null;
+      review = null;
     }
   }
 
   return (
     <Suspense fallback={<DashboardSkeleton />}>
-      <DashboardShell artifacts={artifacts} onboarding={onboarding} />
+      <DashboardShell
+        artifacts={artifacts}
+        onboarding={onboarding}
+        review={review}
+      />
     </Suspense>
   );
 }
