@@ -1,13 +1,17 @@
 import { createServerClient } from "@supabase/ssr";
 import { cookies } from "next/headers";
+import {
+  getSupabasePublishableKey,
+  getSupabaseUrl,
+} from "@/lib/supabase/config";
 
 export async function createClient() {
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+  const url = getSupabaseUrl();
+  const key = getSupabasePublishableKey();
 
   if (!url || !key) {
     throw new Error(
-      "Supabase is not configured. Set NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY in .env.local",
+      "Supabase is not configured. Set NEXT_PUBLIC_SUPABASE_URL plus NEXT_PUBLIC_SUPABASE_ANON_KEY or NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY.",
     );
   }
 

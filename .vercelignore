@@ -1,0 +1,8 @@
+dataset
+.next
+node_modules
+.git
+.cursor
+.agents
+agent-transcripts
+*.pack.gz

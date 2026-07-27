@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useSearchParams } from "next/navigation";
 import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -20,7 +20,6 @@ type Pending =
   | "google";
 
 export function AuthForm({ variant }: { variant: "login" | "signup" }) {
-  const router = useRouter();
   const searchParams = useSearchParams();
   const next = searchParams.get("next") ?? "/chat";
   const callbackError = searchParams.get("error");
@@ -69,9 +68,13 @@ export function AuthForm({ variant }: { variant: "login" | "signup" }) {
         <p className="text-sm leading-relaxed text-ink-secondary">
           Supabase is not configured yet. Add{" "}
           <code className="text-xs text-accent">NEXT_PUBLIC_SUPABASE_URL</code>{" "}
-          and{" "}
+          and either{" "}
           <code className="text-xs text-accent">NEXT_PUBLIC_SUPABASE_ANON_KEY</code>{" "}
-          to <code className="text-xs">.env.local</code>, then run{" "}
+          or{" "}
+          <code className="text-xs text-accent">
+            NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY
+          </code>{" "}
+          in <code className="text-xs">.env.local</code>, then run{" "}
           <code className="text-xs">supabase/migrations/001_initial.sql</code>{" "}
           in the SQL editor. Enable Email and Google providers in Auth settings.
         </p>
@@ -83,13 +86,13 @@ export function AuthForm({ variant }: { variant: "login" | "signup" }) {
   }
 
   async function finishAuth() {
-    const profile = await ensureProfile();
+    const profile = await ensureProfile(next || "/chat");
     if (!profile.ok) {
       throw new Error(profile.error);
     }
-    const destination = profile.firstLogin ? "/onboarding" : next || "/chat";
-    router.replace(destination);
-    router.refresh();
+    // Hard navigation: soft replace+refresh often hangs after cookie auth
+    // on production (session cookies land, RSC never swaps the login UI).
+    window.location.assign(profile.destination);
   }
 
   async function onSubmit(e: React.FormEvent) {
@@ -457,7 +460,7 @@ function friendlyAuthError(message: string) {
     return "Could not reach Supabase. Check NEXT_PUBLIC_SUPABASE_URL and that your project is not paused.";
   }
   if (lower.includes("invalid api key") || lower.includes("jwt")) {
-    return "Invalid Supabase API key. In Project Settings → API, copy the anon/publishable key into NEXT_PUBLIC_SUPABASE_ANON_KEY.";
+    return "Invalid Supabase API key. In Project Settings -> API, copy the anon or publishable key into NEXT_PUBLIC_SUPABASE_ANON_KEY or NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY.";
   }
   return message;
 }

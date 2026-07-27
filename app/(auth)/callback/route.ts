@@ -44,12 +44,16 @@ export async function GET(request: Request) {
 
       const { data: profile } = await supabase
         .from("profiles")
-        .select("first_login")
+        .select("first_login, role")
         .eq("id", data.user.id)
         .maybeSingle();
 
-      const destination =
-        profile?.first_login === false ? next : "/onboarding";
+      let destination = "/onboarding";
+      if (profile?.first_login === false) {
+        if (profile.role === "admin") destination = "/admin";
+        else if (next.startsWith("/")) destination = next;
+        else destination = "/chat";
+      }
       return NextResponse.redirect(`${origin}${destination}`);
     }
   }

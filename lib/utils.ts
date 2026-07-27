@@ -1,15 +1,13 @@
 import { clsx, type ClassValue } from "clsx";
 import { twMerge } from "tailwind-merge";
+import { isSupabaseConfigured as hasSupabaseConfig } from "@/lib/supabase/config";
 
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
 }
 
 export function isSupabaseConfigured(): boolean {
-  return Boolean(
-    process.env.NEXT_PUBLIC_SUPABASE_URL &&
-      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
-  );
+  return hasSupabaseConfig();
 }
 
 export function isAiConfigured(): boolean {

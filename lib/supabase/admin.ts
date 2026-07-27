@@ -1,13 +1,14 @@
 import { createClient } from "@supabase/supabase-js";
+import { getSupabaseSecretKey, getSupabaseUrl } from "@/lib/supabase/config";
 
 /** Service-role client for webhooks and trusted server jobs. Never expose to the browser. */
 export function createServiceClient() {
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  const url = getSupabaseUrl();
+  const key = getSupabaseSecretKey();
 
   if (!url || !key) {
     throw new Error(
-      "Service role client requires NEXT_PUBLIC_SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY.",
+      "Service role client requires NEXT_PUBLIC_SUPABASE_URL or SUPABASE_URL plus SUPABASE_SERVICE_ROLE_KEY or SUPABASE_SECRET_KEY.",
     );
   }
 

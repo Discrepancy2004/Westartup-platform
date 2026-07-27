@@ -3,8 +3,17 @@
 import { createClient } from "@/lib/supabase/server";
 import { createServiceClient } from "@/lib/supabase/admin";
 
+type ProfileRole = "founder" | "expert" | "admin" | string | null;
+
+function homeFor(firstLogin: boolean, role: ProfileRole, next: string) {
+  if (firstLogin) return "/onboarding";
+  if (role === "admin") return "/admin";
+  if (next && next !== "/chat") return next;
+  return "/chat";
+}
+
 /** Ensure a profiles row exists after auth (covers missing DB trigger). */
-export async function ensureProfile() {
+export async function ensureProfile(next = "/chat") {
   const supabase = await createClient();
   const {
     data: { user },
@@ -14,14 +23,17 @@ export async function ensureProfile() {
 
   const { data: existing } = await supabase
     .from("profiles")
-    .select("id, first_login")
+    .select("id, first_login, role")
     .eq("id", user.id)
     .maybeSingle();
 
   if (existing) {
+    const firstLogin = existing.first_login ?? true;
     return {
       ok: true as const,
-      firstLogin: existing.first_login ?? true,
+      firstLogin,
+      role: (existing.role as ProfileRole) ?? "founder",
+      destination: homeFor(firstLogin, existing.role, next),
     };
   }
 
@@ -43,5 +55,10 @@ export async function ensureProfile() {
     if (error) return { ok: false as const, error: error.message };
   }
 
-  return { ok: true as const, firstLogin: true };
+  return {
+    ok: true as const,
+    firstLogin: true,
+    role: "founder" as const,
+    destination: "/onboarding",
+  };
 }
