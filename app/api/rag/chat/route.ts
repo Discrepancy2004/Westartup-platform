@@ -3,10 +3,15 @@ import {
   streamText,
   type UIMessage,
 } from "ai";
-import { getChatUsageSummary, RAG_WORKSPACE_TITLE } from "@/lib/billing/usage";
+import {
+  getChatUsageSummary,
+  hasRagAccess,
+  RAG_WORKSPACE_TITLE,
+} from "@/lib/billing/usage";
 import { buildAdvisorSystemPrompt } from "@/lib/ai/prompts";
 import { getLanguageModelResilient } from "@/lib/ai/provider";
 import { buildHiddenDnaContext, resolveDna } from "@/lib/dna/resolve";
+import { formatRagContext, recordDnaInjectionUsage, retrieveRagChunks } from "@/lib/rag/retrieve";
 import type { PlanId } from "@/lib/razorpay/plans";
 import { createClient } from "@/lib/supabase/server";
 import type { OnboardingAnswers } from "@/lib/types/onboarding";
@@ -45,20 +50,26 @@ export async function POST(request: Request) {
       .eq("id", user.id)
       .maybeSingle();
 
-    const onboarding = profile?.onboarding as OnboardingAnswers | null;
     const planId = (profile?.plan_id as PlanId | null) ?? "starter";
-    const usage = await getChatUsageSummary(supabase, user.id, planId);
+    if (!hasRagAccess(planId)) {
+      return Response.json(
+        { error: "RAG workspace is available on Growth and Scale." },
+        { status: 403 },
+      );
+    }
 
+    const usage = await getChatUsageSummary(supabase, user.id, planId);
     if (usage.limit !== null && usage.used >= usage.limit) {
       return Response.json(
         {
-          error: `You have reached the ${usage.limit} chat limit for today on ${planId}. Upgrade to keep going.`,
+          error: `You have reached the ${usage.limit} chat limit for today on ${planId}.`,
         },
         { status: 429 },
       );
     }
 
-    const { dna, experience } = resolveDna({
+    const onboarding = profile?.onboarding as OnboardingAnswers | null;
+    const { dna } = resolveDna({
       stored: profile?.startup_dna,
       onboarding,
     });
@@ -68,7 +79,7 @@ export async function POST(request: Request) {
       .from("conversations")
       .select("id")
       .eq("user_id", user.id)
-      .neq("title", RAG_WORKSPACE_TITLE)
+      .eq("title", RAG_WORKSPACE_TITLE)
       .order("created_at", { ascending: false })
       .limit(1)
       .maybeSingle();
@@ -80,17 +91,42 @@ export async function POST(request: Request) {
         .from("conversations")
         .insert({
           user_id: user.id,
-          title: `${experience.label} workspace`,
+          title: RAG_WORKSPACE_TITLE,
         })
         .select("id")
         .single();
       if (error || !created) {
         return Response.json(
-          { error: error?.message ?? "Could not create conversation" },
+          { error: error?.message ?? "Could not create RAG conversation" },
           { status: 500 },
         );
       }
       conversationId = created.id;
+    }
+
+    const messages = body.messages ?? [];
+    const lastUser = [...messages].reverse().find((message) => message.role === "user");
+    const lastUserText = lastUser?.parts
+      ?.filter((part): part is { type: "text"; text: string } => part.type === "text")
+      .map((part) => part.text)
+      .join("\n")
+      .trim();
+
+    if (lastUserText) {
+      await supabase.from("messages").insert({
+        conversation_id: conversationId,
+        role: "user",
+        content: lastUserText,
+      });
+    }
+
+    const ragChunks = lastUserText
+      ? await retrieveRagChunks(supabase, lastUserText)
+      : [];
+    const ragContext = formatRagContext(ragChunks);
+
+    if (ragChunks.length > 0) {
+      await recordDnaInjectionUsage(supabase, ragChunks);
     }
 
     const onboardingJson = onboarding
@@ -102,31 +138,13 @@ export async function POST(request: Request) {
       dnaContext: buildHiddenDnaContext(dna, onboarding),
     })}
 
-## Dashboard note
-Artifacts live on /dashboard. Propose updates only when confident, using the WESTARTUP_UPDATE block so the founder can Accept / Not now.
+## RAG workspace
+You are in the grounded RAG workspace. Answer using the retrieved context first.
+If the retrieved context is weak or missing, say what is missing instead of inventing support.
 
-## Attachment note
-If the founder includes attachment summaries in the message, treat them as grounded source material and use them directly in your answer.`;
+## Retrieved context
+${ragContext || "No retrieved context was available for this question."}`;
 
-    const messages = body.messages ?? [];
-
-    const lastUser = [...messages].reverse().find((m) => m.role === "user");
-    if (lastUser) {
-      const text = lastUser.parts
-        ?.filter((p): p is { type: "text"; text: string } => p.type === "text")
-        .map((p) => p.text)
-        .join("\n");
-      if (text) {
-        await supabase.from("messages").insert({
-          conversation_id: conversationId,
-          role: "user",
-          content: text,
-        });
-      }
-    }
-
-    // Tools disabled here — Groq/tool-calling was failing chat.
-    // Artifacts are created via /api/onboarding/bootstrap instead.
     const { model, provider, modelId } = getLanguageModelResilient();
 
     const result = streamText({
@@ -134,7 +152,7 @@ If the founder includes attachment summaries in the message, treat them as groun
       system,
       messages: await convertToModelMessages(messages),
       onError: ({ error }) => {
-        console.error(`[chat] stream error (${provider}/${modelId})`, error);
+        console.error(`[rag] stream error (${provider}/${modelId})`, error);
       },
       onFinish: async ({ text }) => {
         if (!text) return;
@@ -153,8 +171,8 @@ If the founder includes attachment summaries in the message, treat them as groun
       },
     });
   } catch (err) {
-    console.error("[chat] failed", err);
-    const message = err instanceof Error ? err.message : "Chat failed";
+    console.error("[rag] failed", err);
+    const message = err instanceof Error ? err.message : "RAG chat failed";
     return Response.json({ error: message }, { status: 500 });
   }
 }

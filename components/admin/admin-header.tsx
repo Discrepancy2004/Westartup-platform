@@ -15,7 +15,6 @@ const PRIMARY = [
   { href: "/admin", label: "Dashboard", exact: true },
   { href: "/admin/founders", label: "Founders" },
   { href: "/admin/knowledge", label: "Knowledge Base" },
-  { href: "/admin/ai", label: "AI Configuration" },
   { href: "/admin/analytics", label: "Analytics" },
 ] as const;
 

@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { RAG_WORKSPACE_TITLE } from "@/lib/billing/usage";
 import { generateBootstrapArtifacts } from "@/lib/ai/bootstrap";
 import { getLanguageModelResilient } from "@/lib/ai/provider";
 import { createClient } from "@/lib/supabase/server";
@@ -58,6 +59,7 @@ export async function POST(request: Request) {
       .from("conversations")
       .select("id")
       .eq("user_id", user.id)
+      .neq("title", RAG_WORKSPACE_TITLE)
       .order("created_at", { ascending: false })
       .limit(1)
       .maybeSingle();

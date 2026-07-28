@@ -1,5 +1,6 @@
 "use client";
 
+import { Lock } from "lucide-react";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useMemo } from "react";
@@ -15,11 +16,14 @@ import {
 } from "@/components/dashboard/motion-primitives";
 import { PitchDeckView } from "@/components/dashboard/pitch-deck-view";
 import { ProjectBoardView } from "@/components/dashboard/project-board-view";
+import { RagWorkspace } from "@/components/dashboard/rag-workspace";
 import { ValuationView } from "@/components/dashboard/valuation-view";
 import { FounderReviewPanel } from "@/components/dashboard/founder-review-panel";
 import { useDna } from "@/components/dna/dna-provider";
 import { DnaWelcome } from "@/components/dna/dna-ui";
+import { hasExpertAccess, hasRagAccess, type ChatUsageSummary } from "@/lib/billing/usage";
 import { resolveKpiValues } from "@/lib/dna/kpi";
+import type { PlanId } from "@/lib/razorpay/plans";
 import type { DashboardSectionId } from "@/lib/dna/types";
 import {
   DASHBOARD_SECTIONS,
@@ -35,6 +39,7 @@ const VIEWS = [
   { id: "pitch", label: "Pitch Deck" },
   { id: "finance", label: "Financial Model" },
   { id: "valuation", label: "Valuation" },
+  { id: "rag", label: "RAG Workspace" },
 ] as const;
 
 type ViewId = (typeof VIEWS)[number]["id"];
@@ -44,7 +49,8 @@ function parseView(raw: string | null): ViewId {
     raw === "board" ||
     raw === "pitch" ||
     raw === "finance" ||
-    raw === "valuation"
+    raw === "valuation" ||
+    raw === "rag"
   ) {
     return raw;
   }
@@ -54,10 +60,16 @@ function parseView(raw: string | null): ViewId {
 export function DashboardShell({
   artifacts,
   onboarding = null,
+  planId,
+  ragMessages,
+  usage,
   review = null,
 }: {
   artifacts: ArtifactRecord[];
   onboarding?: OnboardingAnswers | null;
+  planId: PlanId;
+  ragMessages: { id: string; role: "user" | "assistant"; content: string }[];
+  usage: ChatUsageSummary;
   review?: {
     userId: string;
     pendingRequest: { id: string; note: string | null } | null;
@@ -79,6 +91,7 @@ export function DashboardShell({
   const router = useRouter();
   const pathname = usePathname();
   const activeView = parseView(searchParams.get("view"));
+  const ragUnlocked = hasRagAccess(planId);
 
   const setView = useCallback(
     (view: ViewId) => {
@@ -121,7 +134,12 @@ export function DashboardShell({
                   : "border-border bg-surface text-ink-secondary hover:border-accent/50",
               )}
             >
-              {v.label}
+              <span className="inline-flex items-center gap-1.5">
+                {v.label}
+                {v.id === "rag" && !ragUnlocked ? (
+                  <Lock className="h-3.5 w-3.5" />
+                ) : null}
+              </span>
             </button>
           ))}
         </div>
@@ -143,7 +161,14 @@ export function DashboardShell({
                     : "text-ink-secondary hover:bg-canvas hover:text-ink",
                 )}
               >
-                {v.label}
+                <span className="inline-flex items-center gap-2">
+                  {v.label}
+                </span>
+                {v.id === "rag" && !ragUnlocked ? (
+                  <span className="ml-auto rounded-full border border-border p-1 text-ink-tertiary">
+                    <Lock className="h-3 w-3" />
+                  </span>
+                ) : null}
               </button>
             ))}
 
@@ -190,6 +215,7 @@ export function DashboardShell({
               byKind={byKind}
               kpis={kpis}
               onboarding={onboarding}
+              planId={planId}
               review={review}
             />
           ) : null}
@@ -208,6 +234,9 @@ export function DashboardShell({
           {activeView === "valuation" ? (
             <ValuationView artifacts={artifacts} onboarding={onboarding} />
           ) : null}
+          {activeView === "rag" ? (
+            <RagWorkspace planId={planId} usage={usage} initialMessages={ragMessages} />
+          ) : null}
         </main>
       </div>
     </div>
@@ -219,12 +248,14 @@ function OverviewBody({
   byKind,
   kpis,
   onboarding,
+  planId,
   review,
 }: {
   artifacts: ArtifactRecord[];
   byKind: Map<ArtifactKind, ArtifactRecord>;
   kpis: ReturnType<typeof resolveKpiValues>;
   onboarding?: OnboardingAnswers | null;
+  planId: PlanId;
   review?: {
     userId: string;
     pendingRequest: { id: string; note: string | null } | null;
@@ -259,11 +290,33 @@ function OverviewBody({
 
       {review ? (
         <div className="mx-auto mt-8 max-w-2xl text-left">
-          <FounderReviewPanel
-            userId={review.userId}
-            pendingRequest={review.pendingRequest}
-            assignments={review.assignments}
-          />
+          {hasExpertAccess(planId) ? (
+            <FounderReviewPanel
+              userId={review.userId}
+              pendingRequest={review.pendingRequest}
+              assignments={review.assignments}
+            />
+          ) : (
+            <section className="rounded-[var(--radius-lg)] border border-border bg-surface px-4 py-5">
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <h2 className="text-sm font-semibold uppercase tracking-wide text-ink-tertiary">
+                    Expert attention
+                  </h2>
+                  <p className="mt-1 text-sm text-ink-secondary">
+                    Direct founder-to-expert chat is reserved for Scale. Growth still
+                    unlocks the grounded RAG workspace.
+                  </p>
+                </div>
+                <span className="rounded-full border border-border p-2 text-ink-tertiary">
+                  <Lock className="h-4 w-4" />
+                </span>
+              </div>
+              <Link href="/billing" className="mt-3 inline-block text-sm text-accent underline">
+                View Scale
+              </Link>
+            </section>
+          )}
         </div>
       ) : null}
 

@@ -1,5 +1,7 @@
 import { Suspense } from "react";
+import { getChatUsageSummary, RAG_WORKSPACE_TITLE, type ChatUsageSummary } from "@/lib/billing/usage";
 import { DashboardShell } from "@/components/dashboard/dashboard-shell";
+import type { PlanId } from "@/lib/razorpay/plans";
 import { createClient } from "@/lib/supabase/server";
 import { isSupabaseConfigured } from "@/lib/utils";
 import type { ArtifactRecord } from "@/lib/types/artifacts";
@@ -8,6 +10,19 @@ import type { OnboardingAnswers } from "@/lib/types/onboarding";
 export default async function DashboardPage() {
   let artifacts: ArtifactRecord[] = [];
   let onboarding: OnboardingAnswers | null = null;
+  let planId: PlanId = "starter";
+  let ragMessages: {
+    id: string;
+    role: "user" | "assistant";
+    content: string;
+  }[] = [];
+  let usage: ChatUsageSummary = {
+    planId: "starter",
+    used: 0,
+    limit: 15,
+    remaining: 15,
+    percentageUsed: 0,
+  };
   let review: {
     userId: string;
     pendingRequest: { id: string; note: string | null } | null;
@@ -39,7 +54,7 @@ export default async function DashboardPage() {
             .order("updated_at", { ascending: false }),
           supabase
             .from("profiles")
-            .select("onboarding")
+            .select("onboarding, plan_id")
             .eq("id", user.id)
             .maybeSingle(),
           supabase
@@ -58,6 +73,35 @@ export default async function DashboardPage() {
         artifacts = (data as ArtifactRecord[] | null) ?? [];
         onboarding =
           (profileRes.data?.onboarding as OnboardingAnswers | null) ?? null;
+        planId = (profileRes.data?.plan_id as PlanId | null) ?? "starter";
+        usage = await getChatUsageSummary(supabase, user.id, planId);
+
+        const { data: ragConversation } = await supabase
+          .from("conversations")
+          .select("id")
+          .eq("user_id", user.id)
+          .eq("title", RAG_WORKSPACE_TITLE)
+          .order("created_at", { ascending: false })
+          .limit(1)
+          .maybeSingle();
+
+        if (ragConversation?.id) {
+          const { data: rows } = await supabase
+            .from("messages")
+            .select("id, role, content")
+            .eq("conversation_id", ragConversation.id)
+            .order("created_at", { ascending: true })
+            .limit(50);
+
+          ragMessages =
+            rows
+              ?.filter((row) => row.role === "user" || row.role === "assistant")
+              .map((row) => ({
+                id: row.id,
+                role: row.role as "user" | "assistant",
+                content: row.content,
+              })) ?? [];
+        }
 
         const assignments = assignRes.data ?? [];
         const expertIds = [...new Set(assignments.map((a) => a.expert_id))];
@@ -118,6 +162,15 @@ export default async function DashboardPage() {
     } catch {
       artifacts = [];
       onboarding = null;
+      planId = "starter";
+      ragMessages = [];
+      usage = {
+        planId: "starter",
+        used: 0,
+        limit: 15,
+        remaining: 15,
+        percentageUsed: 0,
+      };
       review = null;
     }
   }
@@ -127,6 +180,9 @@ export default async function DashboardPage() {
       <DashboardShell
         artifacts={artifacts}
         onboarding={onboarding}
+        planId={planId}
+        ragMessages={ragMessages}
+        usage={usage}
         review={review}
       />
     </Suspense>

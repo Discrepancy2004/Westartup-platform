@@ -73,9 +73,16 @@ export function CompanionShell() {
   useEffect(() => {
     if (hidden || typeof window === "undefined") return;
     const key = "westartup-companion-gender-asked";
-    if (localStorage.getItem(key)) return;
+    if (localStorage.getItem(key) || localStorage.getItem("westartup-has-gender")) {
+      return;
+    }
     const t = window.setTimeout(() => {
-      if (localStorage.getItem(key)) return;
+      if (
+        localStorage.getItem(key) ||
+        localStorage.getItem("westartup-has-gender")
+      ) {
+        return;
+      }
       setBubble({
         text: "Pick Boy or Girl for your guide",
         kind: "prompt",

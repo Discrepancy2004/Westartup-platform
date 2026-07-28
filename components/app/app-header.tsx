@@ -5,7 +5,7 @@ import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 
 type Props = {
-  active: "chat" | "dashboard" | "billing";
+  active: "chat" | "dashboard" | "billing" | "experts";
 };
 
 export function AppHeader({ active }: Props) {
@@ -53,6 +53,12 @@ export function AppHeader({ active }: Props) {
             className={active === "billing" ? "text-ink" : "hover:text-ink"}
           >
             Billing
+          </Link>
+          <Link
+            href="/experts"
+            className={active === "experts" ? "text-ink" : "hover:text-ink"}
+          >
+            Meet your experts
           </Link>
         </nav>
       </div>

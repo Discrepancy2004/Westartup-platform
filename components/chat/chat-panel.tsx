@@ -2,26 +2,39 @@
 
 import { useChat } from "@ai-sdk/react";
 import { DefaultChatTransport } from "ai";
+import { Paperclip, X } from "lucide-react";
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AppHeader } from "@/components/app/app-header";
 import { DashboardUpdateCard } from "@/components/chat/dashboard-update-card";
 import { MarkdownMessage } from "@/components/chat/markdown-message";
+import { UsageRing } from "@/components/chat/usage-ring";
 import { useDna } from "@/components/dna/dna-provider";
 import { DnaSuggestions, DnaWelcome } from "@/components/dna/dna-ui";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
+import { PLANS } from "@/lib/razorpay/plans";
 import { extractDashboardUpdate } from "@/lib/chat/dashboard-update";
+import type { ChatUsageSummary } from "@/lib/billing/usage";
+import type { PlanId } from "@/lib/razorpay/plans";
 
 export function ChatPanel({
   bootstrap,
   initialMessages = [],
+  planId,
+  usage,
 }: {
   bootstrap?: boolean;
   initialMessages?: { id: string; role: "user" | "assistant"; content: string }[];
+  planId: PlanId;
+  usage: ChatUsageSummary;
 }) {
   const { experience } = useDna();
   const [input, setInput] = useState("");
+  const [queuedFiles, setQueuedFiles] = useState<File[]>([]);
+  const [attachmentError, setAttachmentError] = useState<string | null>(null);
+  const [processingAttachments, setProcessingAttachments] = useState(false);
+  const [usageState, setUsageState] = useState(usage);
   const [bootStatus, setBootStatus] = useState<
     "idle" | "running" | "done" | "error"
   >(bootstrap ? "running" : "idle");
@@ -132,14 +145,100 @@ export function ChatPanel({
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages, status, bootStatus]);
 
-  const busy = status === "submitted" || status === "streaming";
+  const busy =
+    status === "submitted" || status === "streaming" || processingAttachments;
   const showEmpty = messages.length === 0 && bootStatus !== "running";
+  const limitReached =
+    usageState.limit !== null && (usageState.remaining ?? 0) <= 0;
+
+  async function submitPrompt(rawText: string, files: File[] = []) {
+    if (busy || bootStatus === "running") return;
+
+    const trimmed = rawText.trim();
+    if (!trimmed && files.length === 0) return;
+
+    if (limitReached) {
+      setAttachmentError(
+        `You have reached today's limit on ${planId}. Upgrade in Billing to continue.`,
+      );
+      return;
+    }
+
+    let finalText = trimmed;
+
+    if (files.length > 0) {
+      setProcessingAttachments(true);
+      setAttachmentError(null);
+      try {
+        const formData = new FormData();
+        for (const file of files) {
+          formData.append("files", file);
+        }
+
+        const res = await fetch("/api/chat/attachments", {
+          method: "POST",
+          body: formData,
+        });
+        const data = await res.json();
+        if (!res.ok) {
+          throw new Error(data.error ?? "Could not process attachments");
+        }
+
+        const attachmentIntro =
+          trimmed || "Please analyze the attached material and respond to it.";
+        finalText = [attachmentIntro, data.promptBlock].filter(Boolean).join("\n\n");
+      } catch (err) {
+        setAttachmentError(
+          err instanceof Error ? err.message : "Could not process attachments",
+        );
+        setProcessingAttachments(false);
+        return;
+      }
+      setProcessingAttachments(false);
+    }
+
+    if (!finalText.trim()) return;
+
+    setInput("");
+    setQueuedFiles([]);
+    clearError();
+    setAttachmentError(null);
+
+    if (usageState.limit !== null) {
+      setUsageState((current) => {
+        const nextUsed = current.used + 1;
+        const remaining =
+          current.limit === null ? null : Math.max(current.limit - nextUsed, 0);
+
+        return {
+          ...current,
+          used: nextUsed,
+          remaining,
+          percentageUsed:
+            current.limit === null || current.limit === 0
+              ? 0
+              : Math.min((nextUsed / current.limit) * 100, 100),
+        };
+      });
+    }
+
+    await sendMessage({ text: finalText });
+  }
 
   return (
     <div className="flex h-[100svh] flex-col">
       <AppHeader active="chat" />
 
       <div className="mx-auto flex w-full max-w-3xl flex-1 flex-col gap-4 overflow-y-auto px-4 py-6">
+        <div className="flex items-center justify-between gap-3">
+          <UsageRing usage={usageState} />
+          <p className="text-xs text-ink-tertiary">
+            {planId === "scale"
+              ? "Scale includes unlimited advisor chat."
+              : "Daily usage resets every day."}
+          </p>
+        </div>
+
         {bootStatus !== "running" ? <DnaWelcome /> : null}
 
         {bootStatus === "running" ? (
@@ -193,6 +292,16 @@ export function ChatPanel({
           </div>
         ) : null}
 
+        {limitReached ? (
+          <div className="rounded-[var(--radius-md)] border border-challenge/30 bg-[color-mix(in_srgb,var(--challenge)_10%,white)] px-4 py-3 text-sm text-ink">
+            You have used today&apos;s chat allocation for {PLANS[planId].name}.{" "}
+            <Link href="/billing" className="font-medium text-accent underline">
+              Upgrade your tier
+            </Link>{" "}
+            to keep going.
+          </div>
+        ) : null}
+
         {showEmpty ? (
           <div className="rounded-[var(--radius-lg)] border border-dashed border-border px-5 py-8">
             <p className="font-display text-xl text-ink">
@@ -204,8 +313,7 @@ export function ChatPanel({
             <DnaSuggestions
               className="mt-5"
               onPick={(text) => {
-                clearError();
-                void sendMessage({ text });
+                void submitPrompt(text);
               }}
             />
           </div>
@@ -272,19 +380,14 @@ export function ChatPanel({
         className="border-t border-border px-4 py-4"
         onSubmit={(e) => {
           e.preventDefault();
-          const value = input.trim();
-          if (!value || busy || bootStatus === "running") return;
-          setInput("");
-          clearError();
-          void sendMessage({ text: value });
+          void submitPrompt(input, queuedFiles);
         }}
       >
         <div className="mx-auto w-full max-w-3xl space-y-3">
           {messages.length > 0 && !busy && bootStatus !== "running" ? (
             <DnaSuggestions
               onPick={(text) => {
-                clearError();
-                void sendMessage({ text });
+                void submitPrompt(text);
               }}
             />
           ) : null}
@@ -294,8 +397,8 @@ export function ChatPanel({
               value={input}
               onChange={(e) => setInput(e.target.value)}
               placeholder={experience.chatPlaceholder}
-              disabled={bootStatus === "running"}
               className="min-h-[52px] resize-none bg-surface"
+              disabled={bootStatus === "running" || limitReached}
               onKeyDown={(e) => {
                 if (e.key === "Enter" && !e.shiftKey) {
                   e.preventDefault();
@@ -305,12 +408,59 @@ export function ChatPanel({
             />
             <Button
               type="submit"
-              disabled={busy || !input.trim() || bootStatus === "running"}
+              disabled={
+                busy ||
+                bootStatus === "running" ||
+                limitReached ||
+                (!input.trim() && queuedFiles.length === 0)
+              }
               className="self-end"
             >
-              Send
+              {processingAttachments ? "Reading files…" : "Send"}
             </Button>
           </div>
+          <div className="flex flex-wrap items-center gap-2">
+            <label className="inline-flex cursor-pointer items-center gap-2 rounded-[var(--radius-md)] border border-border px-3 py-2 text-xs text-ink-secondary transition-colors hover:border-accent/40 hover:text-ink">
+              <Paperclip className="h-4 w-4" />
+              Add PDF or image
+              <input
+                type="file"
+                accept="application/pdf,image/*"
+                multiple
+                className="hidden"
+                disabled={busy || limitReached}
+                onChange={(event) => {
+                  const nextFiles = Array.from(event.target.files ?? []);
+                  if (nextFiles.length === 0) return;
+                  setQueuedFiles((current) => [...current, ...nextFiles]);
+                  setAttachmentError(null);
+                  event.currentTarget.value = "";
+                }}
+              />
+            </label>
+            {queuedFiles.map((file, index) => (
+              <span
+                key={`${file.name}-${index}`}
+                className="inline-flex items-center gap-2 rounded-full border border-border bg-surface px-3 py-1.5 text-xs text-ink-secondary"
+              >
+                {file.name}
+                <button
+                  type="button"
+                  className="text-ink-tertiary hover:text-ink"
+                  onClick={() =>
+                    setQueuedFiles((current) =>
+                      current.filter((_, currentIndex) => currentIndex !== index),
+                    )
+                  }
+                >
+                  <X className="h-3.5 w-3.5" />
+                </button>
+              </span>
+            ))}
+          </div>
+          {attachmentError ? (
+            <p className="text-sm text-danger">{attachmentError}</p>
+          ) : null}
         </div>
       </form>
     </div>

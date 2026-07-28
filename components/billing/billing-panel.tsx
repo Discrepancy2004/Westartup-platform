@@ -1,97 +1,55 @@
 "use client";
 
-import Script from "next/script";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { PLAN_ORDER, PLANS, formatPlanPrice, type PlanId } from "@/lib/razorpay/plans";
 import type { BillingProfile } from "@/lib/types/billing";
 
-declare global {
-  interface Window {
-    Razorpay?: new (options: Record<string, unknown>) => { open: () => void };
-  }
-}
-
 export function BillingPanel({ profile }: { profile: BillingProfile }) {
+  const [selectedPlanId, setSelectedPlanId] = useState<PlanId>(profile.planId ?? "starter");
   const [busy, setBusy] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  async function startCheckout(planId: PlanId) {
+  const currentPlanId = profile.planId ?? "starter";
+  const selectedPlan = PLANS[selectedPlanId];
+
+  const ctaLabel = useMemo(() => {
+    if (selectedPlanId === currentPlanId) {
+      return "Current plan";
+    }
+
+    if (selectedPlanId === "starter") {
+      return "Switch to Starter";
+    }
+
+    return `Move to ${PLANS[selectedPlanId].name}`;
+  }, [currentPlanId, selectedPlanId]);
+
+  async function switchPlan(planId: PlanId) {
     setBusy(planId);
     setError(null);
     setMessage(null);
+
     try {
-      const plan = PLANS[planId];
+      const action =
+        planId === "starter"
+          ? "downgrade"
+          : currentPlanId === "starter"
+            ? "upgrade"
+            : "upgrade";
 
-      // Free tier — no Razorpay charge
-      if (plan.isFree || plan.priceInPaise === 0 && planId === "starter") {
-        const res = await fetch("/api/billing/manage", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ action: "downgrade", planId: "starter" }),
-        });
-        const data = await res.json();
-        if (!res.ok) throw new Error(data.error ?? "Could not switch to Starter");
-        setMessage("Switched to Starter (free).");
-        window.location.reload();
-        return;
-      }
-
-      if (plan.priceInPaise <= 0) {
-        throw new Error(
-          "This paid plan still has placeholder pricing. Set priceInPaise in lib/razorpay/plans.ts before checkout.",
-        );
-      }
-
-      const res = await fetch("/api/billing/checkout", {
+      const res = await fetch("/api/billing/manage", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ planId }),
+        body: JSON.stringify({ action, planId }),
       });
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error ?? "Checkout failed");
-
-      if (data.mode === "subscription") {
-        setMessage(
-          `Subscription ${data.subscriptionId} created (pending). Complete payment in Razorpay dashboard/test checkout when plan IDs are live.`,
-        );
-        return;
-      }
-
-      if (!window.Razorpay) {
-        throw new Error("Razorpay.js failed to load.");
-      }
-
-      const rzp = new window.Razorpay({
-        key: data.keyId,
-        amount: data.amount,
-        currency: data.currency,
-        name: "WeStartup",
-        description: `${PLANS[planId].name} plan`,
-        order_id: data.orderId,
-        handler: async (response: {
-          razorpay_order_id: string;
-          razorpay_payment_id: string;
-          razorpay_signature: string;
-        }) => {
-          const verifyRes = await fetch("/api/billing/verify", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ planId, ...response }),
-          });
-          const verifyData = await verifyRes.json();
-          if (!verifyRes.ok) {
-            setError(verifyData.error ?? "Verification failed");
-            return;
-          }
-          setMessage("Payment successful. Plan updated.");
-          window.location.reload();
-        },
-      });
-      rzp.open();
+      if (!res.ok) throw new Error(data.error ?? "Plan update failed");
+      setMessage(`You are now on the ${PLANS[planId].name} tier.`);
+      window.location.reload();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Checkout failed");
+      setError(err instanceof Error ? err.message : "Plan update failed");
     } finally {
       setBusy(null);
     }
@@ -118,25 +76,18 @@ export function BillingPanel({ profile }: { profile: BillingProfile }) {
   }
 
   return (
-    <>
-      <Script src="https://checkout.razorpay.com/v1/checkout.js" strategy="lazyOnload" />
-
+    <div className="space-y-6">
       <div className="rounded-[var(--radius-lg)] border border-border bg-surface p-5">
         <p className="text-[10px] uppercase tracking-[0.16em] text-ink-tertiary">
-          Current plan
+          Current tier
         </p>
         <p className="mt-2 font-display text-2xl text-ink">
-          {profile.planId
-            ? PLANS[profile.planId].name
-            : "Starter (default)"}
+          {PLANS[currentPlanId].name}
         </p>
         <p className="mt-1 text-sm text-ink-secondary">
-          Status · {profile.status}
-          {profile.currentPeriodEnd
-            ? ` · renews ${new Date(profile.currentPeriodEnd).toLocaleDateString("en-IN")}`
-            : ""}
+          Status: {profile.status === "none" ? "Starter access" : profile.status}
         </p>
-        {profile.status === "active" && profile.planId !== "starter" ? (
+        {currentPlanId !== "starter" ? (
           <Button
             type="button"
             variant="secondary"
@@ -144,66 +95,80 @@ export function BillingPanel({ profile }: { profile: BillingProfile }) {
             disabled={busy === "cancel"}
             onClick={cancelPlan}
           >
-            Cancel subscription
+            Move back to Starter
           </Button>
         ) : null}
       </div>
 
-      <div className="mt-8 grid gap-4 md:grid-cols-3">
-        {PLAN_ORDER.map((id) => {
-          const plan = PLANS[id];
-          const current =
-            profile.planId === id ||
-            ((!profile.planId || profile.planId === "starter") && id === "starter");
-          const price = formatPlanPrice(plan);
-          return (
-            <div
-              key={id}
-              className="flex flex-col rounded-[var(--radius-lg)] border border-border bg-surface p-5"
+      <div className="rounded-[var(--radius-lg)] border border-border bg-surface p-3">
+        <div className="grid gap-2 md:grid-cols-3">
+          {PLAN_ORDER.map((planId) => (
+            <button
+              key={planId}
+              type="button"
+              onClick={() => setSelectedPlanId(planId)}
+              className={
+                selectedPlanId === planId
+                  ? "rounded-[var(--radius-md)] border border-accent bg-accent-subtle px-4 py-3 text-left"
+                  : "rounded-[var(--radius-md)] border border-border px-4 py-3 text-left text-ink-secondary transition-colors hover:border-accent/40 hover:text-ink"
+              }
             >
-              <p className="text-sm font-medium text-ink">{plan.name}</p>
-              {plan.isFree ? (
-                <p className="mt-1 text-xs text-ink-tertiary">Free tier</p>
-              ) : null}
-              <p className="mt-3 font-display text-3xl text-ink">
-                {price.label}
-                {price.suffix ? (
-                  <span className="ml-1 text-sm font-sans text-ink-tertiary">
-                    {price.suffix}
-                  </span>
-                ) : null}
-              </p>
-              <ul className="mt-4 flex-1 space-y-2 text-sm text-ink-secondary">
-                {plan.features.map((f) => (
-                  <li key={f}>· {f}</li>
-                ))}
-              </ul>
-              <Button
-                type="button"
-                className="mt-6"
-                variant={current ? "secondary" : "primary"}
-                disabled={current || busy === id}
-                onClick={() => startCheckout(id)}
-              >
-                {current
-                  ? "Current plan"
-                  : busy === id
-                    ? "Opening…"
-                    : plan.isFree
-                      ? "Use free plan"
-                      : "Choose plan"}
-              </Button>
-            </div>
-          );
-        })}
+              <p className="font-medium text-ink">{PLANS[planId].name}</p>
+              <p className="mt-1 text-xs">{PLANS[planId].description}</p>
+            </button>
+          ))}
+        </div>
       </div>
 
-      {message ? <p className="mt-6 text-sm text-success">{message}</p> : null}
-      {error ? <p className="mt-6 text-sm text-danger">{error}</p> : null}
-      <p className="mt-6 text-xs text-ink-tertiary">
-        Supports UPI, cards, netbanking, and wallets via Razorpay Checkout.
-        Prices are placeholders until plan amounts are finalized.
+      <div className="rounded-[var(--radius-lg)] border border-border bg-surface p-6">
+        <div className="flex flex-col gap-6 md:flex-row md:items-start md:justify-between">
+          <div className="max-w-2xl">
+            <p className="text-[10px] uppercase tracking-[0.16em] text-ink-tertiary">
+              Billing tab
+            </p>
+            <h2 className="mt-2 font-display text-3xl text-ink">
+              {selectedPlan.name}
+            </h2>
+            <p className="mt-2 text-sm text-ink-secondary">
+              {selectedPlan.description}
+            </p>
+          </div>
+          <div className="shrink-0 rounded-[var(--radius-md)] border border-border px-4 py-3 text-right">
+            <p className="text-xs text-ink-tertiary">Access</p>
+            <p className="mt-1 font-display text-2xl text-ink">
+              {formatPlanPrice(selectedPlan).label}
+            </p>
+          </div>
+        </div>
+
+        <div className="mt-6 grid gap-3 md:grid-cols-2">
+          {selectedPlan.features.map((feature) => (
+            <div
+              key={feature}
+              className="rounded-[var(--radius-md)] border border-border px-4 py-3 text-sm text-ink-secondary"
+            >
+              {feature}
+            </div>
+          ))}
+        </div>
+
+        <div className="mt-6">
+          <Button
+            type="button"
+            disabled={selectedPlanId === currentPlanId || busy === selectedPlanId}
+            onClick={() => switchPlan(selectedPlanId)}
+          >
+            {busy === selectedPlanId ? "Updating…" : ctaLabel}
+          </Button>
+        </div>
+      </div>
+
+      {message ? <p className="text-sm text-success">{message}</p> : null}
+      {error ? <p className="text-sm text-danger">{error}</p> : null}
+      <p className="text-xs text-ink-tertiary">
+        Tier buttons switch access instantly for now. Razorpay checkout can be
+        added later without changing the tier structure.
       </p>
-    </>
+    </div>
   );
 }

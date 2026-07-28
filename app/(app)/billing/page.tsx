@@ -51,7 +51,7 @@ export default async function BillingPage() {
         <div className="max-w-xl space-y-2">
           <h1 className="font-display text-3xl text-ink">Billing</h1>
           <p className="text-sm text-ink-secondary">
-            Manage your WeStartup plan. Payments via Razorpay.
+            Move between Starter, Growth, and Scale while pricing is still internal.
           </p>
         </div>
         <div className="mt-8">

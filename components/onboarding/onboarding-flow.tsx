@@ -238,6 +238,26 @@ export function OnboardingFlow({ userEmail }: { userEmail?: string | null }) {
     })();
   }, [accountEmail]);
 
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const storedGender = window.localStorage.getItem("westartup-has-gender");
+    if (storedGender !== "boy" && storedGender !== "girl") return;
+
+    setAnswers((current) => {
+      if (current["about-you"]?.companionGender) {
+        return current;
+      }
+
+      return {
+        ...current,
+        "about-you": {
+          roleAndBackground: current["about-you"]?.roleAndBackground ?? "",
+          companionGender: storedGender,
+        },
+      };
+    });
+  }, []);
+
   async function signOut() {
     const { createClient } = await import("@/lib/supabase/client");
     const supabase = createClient();
@@ -426,39 +446,57 @@ export function OnboardingFlow({ userEmail }: { userEmail?: string | null }) {
                   }
                 />
                 <div className="space-y-2">
-                  <p className="text-sm font-medium text-ink">
-                    Your companion should look like
-                  </p>
-                  <div className="flex gap-2">
-                    {(["boy", "girl"] as const).map((g) => {
-                      const selected =
-                        answers["about-you"]?.companionGender === g;
-                      return (
-                        <button
-                          key={g}
-                          type="button"
-                          onClick={() =>
-                            setAnswers((a) => ({
-                              ...a,
-                              "about-you": {
-                                roleAndBackground:
-                                  a["about-you"]?.roleAndBackground ?? "",
-                                companionGender: g,
-                              },
-                            }))
-                          }
-                          className={cn(
-                            "flex-1 rounded-[var(--radius-md)] border px-4 py-3 text-sm font-medium capitalize transition-colors",
-                            selected
-                              ? "border-accent bg-accent-subtle text-ink"
-                              : "border-border bg-surface text-ink-secondary hover:border-ink-tertiary",
-                          )}
-                        >
-                          {g}
-                        </button>
-                      );
-                    })}
-                  </div>
+                  {answers["about-you"]?.companionGender ? (
+                    <div className="rounded-[var(--radius-md)] border border-border bg-surface px-4 py-3 text-sm text-ink-secondary">
+                      Companion locked in:{" "}
+                      <span className="font-medium capitalize text-ink">
+                        {answers["about-you"]?.companionGender}
+                      </span>
+                    </div>
+                  ) : (
+                    <>
+                      <p className="text-sm font-medium text-ink">
+                        Your companion should look like
+                      </p>
+                      <div className="flex gap-2">
+                        {(["boy", "girl"] as const).map((g) => {
+                          const selected =
+                            answers["about-you"]?.companionGender === g;
+                          return (
+                            <button
+                              key={g}
+                              type="button"
+                              onClick={() => {
+                                if (typeof window !== "undefined") {
+                                  window.localStorage.setItem("westartup-has-gender", g);
+                                  window.localStorage.setItem(
+                                    "westartup-companion-gender-asked",
+                                    "1",
+                                  );
+                                }
+                                setAnswers((a) => ({
+                                  ...a,
+                                  "about-you": {
+                                    roleAndBackground:
+                                      a["about-you"]?.roleAndBackground ?? "",
+                                    companionGender: g,
+                                  },
+                                }));
+                              }}
+                              className={cn(
+                                "flex-1 rounded-[var(--radius-md)] border px-4 py-3 text-sm font-medium capitalize transition-colors",
+                                selected
+                                  ? "border-accent bg-accent-subtle text-ink"
+                                  : "border-border bg-surface text-ink-secondary hover:border-ink-tertiary",
+                              )}
+                            >
+                              {g}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </>
+                  )}
                 </div>
               </div>
             ) : null}

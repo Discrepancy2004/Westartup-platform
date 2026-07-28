@@ -1,6 +1,9 @@
 import { Suspense } from "react";
 import { ChatPanel } from "@/components/chat/chat-panel";
+import { getChatUsageSummary, RAG_WORKSPACE_TITLE } from "@/lib/billing/usage";
+import type { PlanId } from "@/lib/razorpay/plans";
 import { createClient } from "@/lib/supabase/server";
+import type { ChatUsageSummary } from "@/lib/billing/usage";
 import { isSupabaseConfigured } from "@/lib/utils";
 
 type Props = {
@@ -10,6 +13,14 @@ type Props = {
 export default async function ChatPage({ searchParams }: Props) {
   const params = await searchParams;
   const bootstrap = params.bootstrap === "1";
+  let planId: PlanId = "starter";
+  let usage: ChatUsageSummary = {
+    planId: "starter",
+    used: 0,
+    limit: 15,
+    remaining: 15,
+    percentageUsed: 0,
+  };
 
   let initialMessages: {
     id: string;
@@ -25,10 +36,20 @@ export default async function ChatPage({ searchParams }: Props) {
       } = await supabase.auth.getUser();
 
       if (user) {
+        const { data: profile } = await supabase
+          .from("profiles")
+          .select("plan_id")
+          .eq("id", user.id)
+          .maybeSingle();
+
+        planId = (profile?.plan_id as PlanId | null) ?? "starter";
+        usage = await getChatUsageSummary(supabase, user.id, planId);
+
         const { data: conversation } = await supabase
           .from("conversations")
           .select("id")
           .eq("user_id", user.id)
+          .neq("title", RAG_WORKSPACE_TITLE)
           .order("created_at", { ascending: false })
           .limit(1)
           .maybeSingle();
@@ -61,6 +82,8 @@ export default async function ChatPage({ searchParams }: Props) {
       <ChatPanel
         bootstrap={bootstrap && initialMessages.length === 0}
         initialMessages={initialMessages}
+        planId={planId}
+        usage={usage}
       />
     </Suspense>
   );
