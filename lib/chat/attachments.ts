@@ -1,6 +1,6 @@
 import { createGoogleGenerativeAI } from "@ai-sdk/google";
 import { generateText } from "ai";
-import pdf from "pdf-parse";
+import { extractPdf } from "@/lib/rag/extract/pdf";
 
 const MAX_ATTACHMENT_TEXT_CHARS = 8_000;
 
@@ -61,8 +61,8 @@ async function summarizeImage(file: File): Promise<string> {
 }
 
 async function extractPdfText(file: File): Promise<string> {
-  const parsed = await pdf(Buffer.from(await file.arrayBuffer()));
-  const text = normalizeText(parsed.text ?? "");
+  const parsed = await extractPdf(Buffer.from(await file.arrayBuffer()));
+  const text = normalizeText(parsed.fullText ?? "");
 
   if (!text) {
     throw new Error(`No readable text found in ${file.name}.`);
