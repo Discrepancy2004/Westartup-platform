@@ -23,6 +23,7 @@ export function AuthForm({ variant }: { variant: "login" | "signup" }) {
   const searchParams = useSearchParams();
   const next = searchParams.get("next") ?? "/chat";
   const callbackError = searchParams.get("error");
+  const errorDetail = searchParams.get("detail");
 
   const [mode, setMode] = useState<Mode>(
     callbackError === "reset_session" ? "forgot" : "password",
@@ -31,9 +32,9 @@ export function AuthForm({ variant }: { variant: "login" | "signup" }) {
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(
     callbackError === "auth_callback"
-      ? "Auth callback failed. Check Supabase redirect URLs include http://localhost:3000/callback"
+      ? `Auth callback failed.${errorDetail ? ` ${errorDetail}` : " Check Supabase redirect URLs include your site /callback."}`
       : callbackError === "reset_session"
-        ? "That reset link expired or is invalid. Request a new one below."
+        ? `That reset link expired or is invalid.${errorDetail ? ` (${errorDetail})` : ""} Request a new one below.`
         : null,
   );
   const [message, setMessage] = useState<string | null>(null);
