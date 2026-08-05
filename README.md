@@ -36,3 +36,8 @@ GROQ_API_KEY=
 
 Set `NEXT_PUBLIC_RAZORPAY_KEY_ID`, `RAZORPAY_KEY_SECRET`, and `RAZORPAY_WEBHOOK_SECRET`.
 Point the webhook to `/api/webhooks/razorpay`. Plan prices in `lib/razorpay/plans.ts` are placeholders (`₹—`) until finalized.
+
+
+update public.profiles
+set role = 'admin'
+where lower(email) = lower('madhavan.venkatesh2004@gmail.com');
