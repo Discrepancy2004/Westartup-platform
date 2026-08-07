@@ -3,6 +3,7 @@
 import { createClient } from "@/lib/supabase/server";
 import { createServiceClient } from "@/lib/supabase/admin";
 import { homePathForAccess } from "@/lib/auth/access";
+import { applyLinkedInProfile } from "@/lib/auth/apply-linkedin-profile";
 import { loadAccessSnapshot } from "@/lib/auth/load-access";
 import { BOOTSTRAP_ADMIN_EMAIL } from "@/lib/types/roles";
 
@@ -19,7 +20,7 @@ export async function ensureProfile() {
     (user.email ?? "").toLowerCase() === BOOTSTRAP_ADMIN_EMAIL.toLowerCase();
 
   // One round-trip: profile + application in parallel
-  let access = await loadAccessSnapshot(user.id, supabase);
+  let access = await loadAccessSnapshot(user.id);
 
   if (access) {
     if (isBootstrapAdmin && access.role !== "admin") {
@@ -33,6 +34,12 @@ export async function ensureProfile() {
       } catch {
         // Trigger / RLS may already handle this
       }
+    }
+
+    try {
+      await applyLinkedInProfile(user);
+    } catch {
+      // Import is non-blocking
     }
 
     return {
@@ -61,6 +68,12 @@ export async function ensureProfile() {
       role,
     });
     if (error) return { ok: false as const, error: error.message };
+  }
+
+  try {
+    await applyLinkedInProfile(user);
+  } catch {
+    // Import is non-blocking
   }
 
   return {

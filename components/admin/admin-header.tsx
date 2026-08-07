@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import type { AdminNavCounts } from "@/lib/admin/counts";
+import { rememberDirectoryReturn } from "@/lib/directory/return-path";
 import { cn } from "@/lib/utils";
 
 type Props = {
@@ -51,9 +52,9 @@ export function AdminHeader({ counts }: Props) {
         const { createClient } = await import("@/lib/supabase/client");
         const supabase = createClient();
         const {
-          data: { user },
-        } = await supabase.auth.getUser();
-        setEmail(user?.email ?? null);
+          data: { session },
+        } = await supabase.auth.getSession();
+        setEmail(session?.user?.email ?? null);
       } catch {
         setEmail(null);
       }
@@ -91,6 +92,7 @@ export function AdminHeader({ counts }: Props) {
           >
             <Link
               href="/admin"
+              prefetch
               className={cn(
                 "rounded-[var(--radius-md)] px-2.5 py-1.5 text-sm transition-colors",
                 isActive(pathname, "/admin", true)
@@ -165,6 +167,7 @@ export function AdminHeader({ counts }: Props) {
               <Link
                 key={item.href}
                 href={item.href}
+                prefetch
                 className={cn(
                   "rounded-[var(--radius-md)] px-2.5 py-1.5 text-sm transition-colors",
                   isActive(pathname, item.href)
@@ -179,6 +182,14 @@ export function AdminHeader({ counts }: Props) {
         </div>
 
         <div className="flex shrink-0 items-center gap-2">
+          <Link
+            href="/companies"
+            prefetch
+            className="hidden text-sm text-ink-secondary hover:text-ink sm:inline"
+            onClick={() => rememberDirectoryReturn(pathname)}
+          >
+            Directory
+          </Link>
           {email ? (
             <p
               className="hidden max-w-[180px] truncate text-xs text-ink-tertiary md:block"
@@ -241,6 +252,13 @@ export function AdminHeader({ counts }: Props) {
           )}
         >
           Founders
+        </Link>
+        <Link
+          href="/companies"
+          className="shrink-0 px-2 py-1 text-xs text-ink-tertiary"
+          onClick={() => rememberDirectoryReturn(pathname)}
+        >
+          Directory
         </Link>
       </nav>
     </header>

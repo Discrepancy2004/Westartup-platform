@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
+import { rememberDirectoryReturn } from "@/lib/directory/return-path";
 import { cn } from "@/lib/utils";
 
 const LINKS = [
@@ -11,6 +12,7 @@ const LINKS = [
   { href: "/expert", label: "Assignments", exact: true },
   { href: "/expert/profile", label: "Profile" },
   { href: "/expert/notifications", label: "Notifications" },
+  { href: "/companies", label: "Directory" },
 ] as const;
 
 function isActive(pathname: string, href: string, exact?: boolean) {
@@ -33,25 +35,35 @@ export function ExpertShellHeader({
 }) {
   const pathname = usePathname();
   const [email, setEmail] = useState<string | null>(null);
+  const [unread, setUnread] = useState(unreadNotifications);
   const gateOnly =
     pathname.startsWith("/expert/pending") ||
     pathname.startsWith("/expert/apply") ||
     pathname.startsWith("/expert/rejected");
 
   useEffect(() => {
+    if (gateOnly) return;
     void (async () => {
       try {
         const { createClient } = await import("@/lib/supabase/client");
         const supabase = createClient();
         const {
-          data: { user },
-        } = await supabase.auth.getUser();
+          data: { session },
+        } = await supabase.auth.getSession();
+        const user = session?.user;
         setEmail(user?.email ?? null);
+        if (!user) return;
+        const { count } = await supabase
+          .from("notifications")
+          .select("id", { count: "exact", head: true })
+          .eq("user_id", user.id)
+          .is("read_at", null);
+        setUnread(count ?? 0);
       } catch {
         setEmail(null);
       }
     })();
-  }, []);
+  }, [gateOnly]);
 
   if (gateOnly) {
     return (
@@ -81,6 +93,12 @@ export function ExpertShellHeader({
               <Link
                 key={item.href}
                 href={item.href}
+                prefetch
+                onClick={
+                  item.href === "/companies"
+                    ? () => rememberDirectoryReturn(pathname)
+                    : undefined
+                }
                 className={cn(
                   "flex items-center gap-1.5 rounded-[var(--radius-md)] px-2.5 py-1.5 text-sm transition-colors",
                   isActive(pathname, item.href, "exact" in item && item.exact)
@@ -89,10 +107,9 @@ export function ExpertShellHeader({
                 )}
               >
                 {item.label}
-                {item.href === "/expert/notifications" &&
-                unreadNotifications > 0 ? (
+                {item.href === "/expert/notifications" && unread > 0 ? (
                   <span className="inline-flex min-w-5 items-center justify-center rounded-[var(--radius-sm)] bg-challenge/15 px-1.5 text-[10px] font-semibold text-challenge">
-                    {unreadNotifications}
+                    {unread}
                   </span>
                 ) : null}
               </Link>
@@ -128,6 +145,12 @@ export function ExpertShellHeader({
           <Link
             key={item.href}
             href={item.href}
+            prefetch
+            onClick={
+              item.href === "/companies"
+                ? () => rememberDirectoryReturn(pathname)
+                : undefined
+            }
             className={cn(
               "shrink-0 px-2 py-1 text-xs",
               isActive(pathname, item.href, "exact" in item && item.exact)
@@ -136,8 +159,8 @@ export function ExpertShellHeader({
             )}
           >
             {item.label}
-            {item.href === "/expert/notifications" && unreadNotifications > 0
-              ? ` (${unreadNotifications})`
+            {item.href === "/expert/notifications" && unread > 0
+              ? ` (${unread})`
               : ""}
           </Link>
         ))}

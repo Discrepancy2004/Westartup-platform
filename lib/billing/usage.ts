@@ -1,4 +1,6 @@
+import { cache } from "react";
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { createClient } from "@/lib/supabase/server";
 import type { PlanId } from "@/lib/razorpay/plans";
 
 export const RAG_WORKSPACE_TITLE = "RAG workspace";
@@ -60,11 +62,16 @@ function getIstDayRange(now = new Date()) {
 }
 
 export async function getChatUsageSummary(
-  supabase: SupabaseClient,
+  _supabase: SupabaseClient | null,
   userId: string,
   planId: PlanId | null | undefined,
 ): Promise<ChatUsageSummary> {
-  const normalizedPlan = planId ?? "starter";
+  return loadChatUsageSummary(userId, planId ?? "starter");
+}
+
+const loadChatUsageSummary = cache(
+  async (userId: string, normalizedPlan: PlanId): Promise<ChatUsageSummary> => {
+  const supabase = await createClient();
   const limit = getChatLimit(normalizedPlan);
 
   const { data: conversations } = await supabase
@@ -111,4 +118,5 @@ export async function getChatUsageSummary(
     remaining,
     percentageUsed,
   };
-}
+  },
+);

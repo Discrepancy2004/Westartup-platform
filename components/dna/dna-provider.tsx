@@ -7,7 +7,7 @@ import {
   useMemo,
   type ReactNode,
 } from "react";
-import { getThemeExperience } from "@/lib/dna/catalog";
+import { FALLBACK_EXPERIENCE } from "@/lib/dna/fallback-experience";
 import type { StartupDna, ThemeExperience } from "@/lib/dna/types";
 
 type DnaContextValue = {
@@ -28,18 +28,17 @@ const FALLBACK_DNA: StartupDna = {
 
 export function DnaProvider({
   dna,
+  experience: experienceProp,
   secondaryLabels = [],
   children,
 }: {
   dna: StartupDna | null;
+  experience?: ThemeExperience;
   secondaryLabels?: string[];
   children: ReactNode;
 }) {
   const resolved = dna ?? FALLBACK_DNA;
-  const experience = useMemo(
-    () => getThemeExperience(resolved.theme),
-    [resolved.theme],
-  );
+  const experience = experienceProp ?? FALLBACK_EXPERIENCE;
 
   useEffect(() => {
     const root = document.documentElement;
@@ -84,7 +83,7 @@ export function useDna(): DnaContextValue {
   if (!ctx) {
     return {
       dna: FALLBACK_DNA,
-      experience: getThemeExperience("general"),
+      experience: FALLBACK_EXPERIENCE,
       secondaryLabels: [],
     };
   }

@@ -1,10 +1,18 @@
 "use client";
 
+import dynamic from "next/dynamic";
 import Link from "next/link";
-import { ArtifactCard } from "@/components/dashboard/artifact-card";
-import { InvestorReadinessPanel } from "@/components/dashboard/investor-readiness";
 import type { ArtifactRecord } from "@/lib/types/artifacts";
 import type { OnboardingAnswers } from "@/lib/types/onboarding";
+
+const ArtifactCard = dynamic(() =>
+  import("@/components/dashboard/artifact-card").then((mod) => mod.ArtifactCard),
+);
+const InvestorReadinessPanel = dynamic(() =>
+  import("@/components/dashboard/investor-readiness").then(
+    (mod) => mod.InvestorReadinessPanel,
+  ),
+);
 
 const HIGHLIGHT_KINDS = [
   "idea-brief",

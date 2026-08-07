@@ -1,7 +1,6 @@
 "use client";
 
 import Link from "next/link";
-import { useSearchParams } from "next/navigation";
 import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -17,13 +16,21 @@ type Pending =
   | "creating-account"
   | "sending-magic"
   | "sending-reset"
-  | "google";
+  | "google"
+  | "linkedin";
 
-export function AuthForm({ variant }: { variant: "login" | "signup" }) {
-  const searchParams = useSearchParams();
-  const next = searchParams.get("next") ?? "/chat";
-  const callbackError = searchParams.get("error");
-  const errorDetail = searchParams.get("detail");
+export function AuthForm({
+  variant,
+  nextPath = "/chat",
+  callbackError = null,
+  errorDetail = null,
+}: {
+  variant: "login" | "signup";
+  nextPath?: string;
+  callbackError?: string | null;
+  errorDetail?: string | null;
+}) {
+  const next = nextPath || "/chat";
 
   const [mode, setMode] = useState<Mode>(
     callbackError === "reset_session" ? "forgot" : "password",
@@ -49,9 +56,9 @@ export function AuthForm({ variant }: { variant: "login" | "signup" }) {
       try {
         const supabase = createClient();
         const {
-          data: { user },
-        } = await supabase.auth.getUser();
-        if (!cancelled) setAlreadySignedIn(Boolean(user));
+          data: { session },
+        } = await supabase.auth.getSession();
+        if (!cancelled) setAlreadySignedIn(Boolean(session?.user));
       } catch {
         if (!cancelled) setAlreadySignedIn(false);
       }
@@ -78,7 +85,8 @@ export function AuthForm({ variant }: { variant: "login" | "signup" }) {
           </code>{" "}
           in <code className="text-xs">.env.local</code>, then run{" "}
           <code className="text-xs">supabase/migrations/001_initial.sql</code>{" "}
-          in the SQL editor. Enable Email and Google providers in Auth settings.
+          in the SQL editor. Enable Email, Google, and LinkedIn (OIDC) providers
+          in Auth settings.
         </p>
         <Link href="/" className="text-sm text-accent hover:underline">
           Back to home
@@ -211,6 +219,30 @@ export function AuthForm({ variant }: { variant: "login" | "signup" }) {
       setError(
         friendlyAuthError(
           err instanceof Error ? err.message : "Google sign-in failed.",
+        ),
+      );
+      setPending(null);
+    }
+  }
+
+  async function signInWithLinkedIn() {
+    setError(null);
+    setPending("linkedin");
+    try {
+      const supabase = createClient();
+      const postAuthNext =
+        variant === "signup" && applyAsExpert ? "/expert/apply" : next;
+      const { error: oauthError } = await supabase.auth.signInWithOAuth({
+        provider: "linkedin_oidc",
+        options: {
+          redirectTo: `${window.location.origin}/callback?next=${encodeURIComponent(postAuthNext)}`,
+        },
+      });
+      if (oauthError) throw oauthError;
+    } catch (err) {
+      setError(
+        friendlyAuthError(
+          err instanceof Error ? err.message : "LinkedIn sign-in failed.",
         ),
       );
       setPending(null);
@@ -409,6 +441,14 @@ export function AuthForm({ variant }: { variant: "login" | "signup" }) {
       >
         Continue with Google
       </Button>
+      <Button
+        type="button"
+        variant="secondary"
+        className="w-full"
+        onClick={signInWithLinkedIn}
+      >
+        Continue with LinkedIn
+      </Button>
 
       <p className="text-center text-sm text-ink-secondary">
         {variant === "login" ? (
@@ -451,6 +491,10 @@ function AuthPendingScreen({ pending }: { pending: Exclude<Pending, null> }) {
     },
     google: {
       title: "Continuing with Google…",
+      subtitle: "You’ll be redirected to finish signing in.",
+    },
+    linkedin: {
+      title: "Continuing with LinkedIn…",
       subtitle: "You’ll be redirected to finish signing in.",
     },
   }[pending];

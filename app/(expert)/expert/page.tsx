@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { getCachedUser } from "@/lib/auth/get-user";
 import { createClient } from "@/lib/supabase/server";
 import { isSupabaseConfigured } from "@/lib/utils";
 
@@ -15,9 +16,7 @@ export default async function ExpertHomePage() {
   }
 
   const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const user = await getCachedUser();
   if (!user) return null;
 
   const { data: assignments } = await supabase
@@ -32,34 +31,40 @@ export default async function ExpertHomePage() {
   const completed = list.filter((a) => a.status === "completed");
 
   const founderIds = [...new Set(list.map((a) => a.founder_id))];
+  const activeIds = active.map((a) => a.id);
   const foundersById = new Map<
     string,
     { email: string | null; summary: string | null }
   >();
-  if (founderIds.length > 0) {
-    const { data: founders } = await supabase
-      .from("profiles")
-      .select("id, email, onboarding")
-      .in("id", founderIds);
-    for (const f of founders ?? []) {
-      const onboarding = f.onboarding as OnboardingSlice;
-      const summary =
-        onboarding?.idea?.description?.trim()?.slice(0, 140) ||
-        onboarding?.["about-you"]?.roleAndBackground?.trim()?.slice(0, 140) ||
-        null;
-      foundersById.set(f.id, { email: f.email, summary });
-    }
+
+  const [{ data: founders }, { data: messages }] = await Promise.all([
+    founderIds.length > 0
+      ? supabase
+          .from("profiles")
+          .select("id, email, onboarding")
+          .in("id", founderIds)
+      : Promise.resolve({ data: [] as { id: string; email: string | null; onboarding: OnboardingSlice }[] }),
+    activeIds.length > 0
+      ? supabase
+          .from("review_messages")
+          .select("assignment_id, sender_id, created_at")
+          .in("assignment_id", activeIds)
+          .order("created_at", { ascending: false })
+      : Promise.resolve({ data: [] as { assignment_id: string; sender_id: string; created_at: string }[] }),
+  ]);
+
+  for (const f of founders ?? []) {
+    const onboarding = f.onboarding as OnboardingSlice;
+    const summary =
+      onboarding?.idea?.description?.trim()?.slice(0, 140) ||
+      onboarding?.["about-you"]?.roleAndBackground?.trim()?.slice(0, 140) ||
+      null;
+    foundersById.set(f.id, { email: f.email, summary });
   }
 
-  const activeIds = active.map((a) => a.id);
   let pendingReplies = 0;
   const pendingReplyIds = new Set<string>();
   if (activeIds.length > 0) {
-    const { data: messages } = await supabase
-      .from("review_messages")
-      .select("assignment_id, sender_id, created_at")
-      .in("assignment_id", activeIds)
-      .order("created_at", { ascending: false });
 
     const latestByAssignment = new Map<string, string>();
     for (const m of messages ?? []) {

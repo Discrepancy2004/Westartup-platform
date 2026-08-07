@@ -1,13 +1,19 @@
 "use client";
 
+import dynamic from "next/dynamic";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 import { Button } from "@/components/ui/button";
 import { ReviewChat } from "@/components/expert/review-chat";
 import { ExpertFounderOverview } from "@/components/expert/expert-founder-overview";
-import { ExpertFounderFullPack } from "@/components/expert/expert-founder-full-pack";
 import { markReviewComplete } from "@/app/(expert)/actions";
+
+const ExpertFounderFullPack = dynamic(() =>
+  import("@/components/expert/expert-founder-full-pack").then(
+    (mod) => mod.ExpertFounderFullPack,
+  ),
+);
 import type { ArtifactRecord } from "@/lib/types/artifacts";
 import type { OnboardingAnswers } from "@/lib/types/onboarding";
 import { cn } from "@/lib/utils";

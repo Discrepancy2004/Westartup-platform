@@ -1,10 +1,19 @@
-import { Suspense } from "react";
 import { AuthForm } from "@/components/auth/auth-form";
+import { firstSearchParam } from "@/lib/http/search-params";
 
-export default function LoginPage() {
+export default async function LoginPage({
+  searchParams,
+}: {
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
+}) {
+  const params = await searchParams;
+
   return (
-    <Suspense fallback={<p className="text-sm text-ink-tertiary">Loading…</p>}>
-      <AuthForm variant="login" />
-    </Suspense>
+    <AuthForm
+      variant="login"
+      nextPath={firstSearchParam(params.next) ?? "/chat"}
+      callbackError={firstSearchParam(params.error)}
+      errorDetail={firstSearchParam(params.detail)}
+    />
   );
 }

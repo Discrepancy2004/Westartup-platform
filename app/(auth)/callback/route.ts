@@ -2,6 +2,8 @@ import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { createServiceClient } from "@/lib/supabase/admin";
 import { homePathForAccess } from "@/lib/auth/access";
+import { applyLinkedInProfile } from "@/lib/auth/apply-linkedin-profile";
+import { isSafeAuthReturnPath } from "@/lib/auth/safe-next";
 import { BOOTSTRAP_ADMIN_EMAIL } from "@/lib/types/roles";
 import type { ExpertApplicationStatus, PlatformRole } from "@/lib/types/roles";
 
@@ -67,6 +69,12 @@ export async function GET(request: Request) {
         // Profile may already exist via trigger
       }
 
+      try {
+        await applyLinkedInProfile(data.user);
+      } catch {
+        // Import is non-blocking
+      }
+
       // Password recovery must land on the reset form, even for first-login users.
       if (next.startsWith("/reset-password")) {
         return NextResponse.redirect(`${origin}${next}`);
@@ -89,9 +97,18 @@ export async function GET(request: Request) {
         .eq("user_id", data.user.id)
         .maybeSingle();
 
+      const role = asRole(profile?.role);
+      const firstLogin = profile?.first_login ?? true;
+      if (
+        (!firstLogin || role === "expert" || role === "admin") &&
+        isSafeAuthReturnPath(next)
+      ) {
+        return NextResponse.redirect(`${origin}${next}`);
+      }
+
       const destination = homePathForAccess({
-        role: asRole(profile?.role),
-        firstLogin: profile?.first_login ?? true,
+        role,
+        firstLogin,
         applicationStatus: asAppStatus(application?.status),
         founderContinuedAt: application?.founder_continued_at ?? null,
       });

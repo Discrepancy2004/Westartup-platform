@@ -1,6 +1,7 @@
 import { notFound } from "next/navigation";
 import { AssignmentWorkspace } from "@/components/expert/assignment-workspace";
 import { DnaProvider } from "@/components/dna/dna-provider";
+import { getCachedUser } from "@/lib/auth/get-user";
 import { resolveDna } from "@/lib/dna/resolve";
 import { createClient } from "@/lib/supabase/server";
 import { isSupabaseConfigured } from "@/lib/utils";
@@ -26,9 +27,7 @@ export default async function ExpertAssignmentPage({
   }
 
   const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const user = await getCachedUser();
   if (!user) return null;
 
   const { data: assignment } = await supabase

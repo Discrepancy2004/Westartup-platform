@@ -3,9 +3,10 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
+import { rememberDirectoryReturn } from "@/lib/directory/return-path";
 
 type Props = {
-  active: "chat" | "dashboard" | "billing" | "experts";
+  active: "chat" | "dashboard" | "billing" | "experts" | "directory";
 };
 
 export function AppHeader({ active }: Props) {
@@ -17,9 +18,9 @@ export function AppHeader({ active }: Props) {
         const { createClient } = await import("@/lib/supabase/client");
         const supabase = createClient();
         const {
-          data: { user },
-        } = await supabase.auth.getUser();
-        setEmail(user?.email ?? null);
+          data: { session },
+        } = await supabase.auth.getSession();
+        setEmail(session?.user?.email ?? null);
       } catch {
         setEmail(null);
       }
@@ -38,27 +39,39 @@ export function AppHeader({ active }: Props) {
         <nav className="flex gap-3 text-sm text-ink-tertiary">
           <Link
             href="/chat"
+            prefetch
             className={active === "chat" ? "text-ink" : "hover:text-ink"}
           >
             Chat
           </Link>
           <Link
             href="/dashboard"
+            prefetch
             className={active === "dashboard" ? "text-ink" : "hover:text-ink"}
           >
             Dashboard
           </Link>
           <Link
             href="/billing"
+            prefetch
             className={active === "billing" ? "text-ink" : "hover:text-ink"}
           >
             Billing
           </Link>
           <Link
             href="/experts"
+            prefetch
             className={active === "experts" ? "text-ink" : "hover:text-ink"}
           >
             Meet your experts
+          </Link>
+          <Link
+            href="/companies"
+            prefetch
+            className={active === "directory" ? "text-ink" : "hover:text-ink"}
+            onClick={() => rememberDirectoryReturn()}
+          >
+            Directory
           </Link>
         </nav>
       </div>

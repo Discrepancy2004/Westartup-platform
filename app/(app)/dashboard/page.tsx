@@ -1,13 +1,25 @@
 import { Suspense } from "react";
+import { getCachedProfile } from "@/lib/auth/get-profile";
+import { getCachedUser } from "@/lib/auth/get-user";
 import { getChatUsageSummary, RAG_WORKSPACE_TITLE, type ChatUsageSummary } from "@/lib/billing/usage";
 import { DashboardShell } from "@/components/dashboard/dashboard-shell";
 import type { PlanId } from "@/lib/razorpay/plans";
 import { createClient } from "@/lib/supabase/server";
 import { isSupabaseConfigured } from "@/lib/utils";
+import { getStartupListingForFounder } from "@/lib/directory/query";
+import type { StartupListing } from "@/lib/directory/types";
 import type { ArtifactRecord } from "@/lib/types/artifacts";
 import type { OnboardingAnswers } from "@/lib/types/onboarding";
 
-export default async function DashboardPage() {
+export default function DashboardPage() {
+  return (
+    <Suspense fallback={<DashboardSkeleton />}>
+      <DashboardData />
+    </Suspense>
+  );
+}
+
+async function DashboardData() {
   let artifacts: ArtifactRecord[] = [];
   let onboarding: OnboardingAnswers | null = null;
   let planId: PlanId = "starter";
@@ -23,6 +35,9 @@ export default async function DashboardPage() {
     remaining: 15,
     percentageUsed: 0,
   };
+  let listing: StartupListing | null = null;
+  let linkedinConnected = false;
+  let linkedinUrl: string | null = null;
   let review: {
     userId: string;
     pendingRequest: { id: string; note: string | null } | null;
@@ -42,21 +57,22 @@ export default async function DashboardPage() {
   if (isSupabaseConfigured()) {
     try {
       const supabase = await createClient();
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
+      const user = await getCachedUser();
       if (user) {
-        const [{ data }, profileRes, pendingRes, assignRes] = await Promise.all([
+        const [
+          { data },
+          profile,
+          pendingRes,
+          assignRes,
+          listingResult,
+          ragConversationRes,
+        ] = await Promise.all([
           supabase
             .from("artifacts")
             .select("id, kind, title, summary, chart_data, updated_at, source")
             .eq("user_id", user.id)
             .order("updated_at", { ascending: false }),
-          supabase
-            .from("profiles")
-            .select("onboarding, plan_id")
-            .eq("id", user.id)
-            .maybeSingle(),
+          getCachedProfile(user.id),
           supabase
             .from("review_requests")
             .select("id, note")
@@ -69,54 +85,78 @@ export default async function DashboardPage() {
             .eq("founder_id", user.id)
             .in("status", ["active", "completed"])
             .order("created_at", { ascending: false }),
+          getStartupListingForFounder(user.id).catch(() => null),
+          supabase
+            .from("conversations")
+            .select("id")
+            .eq("user_id", user.id)
+            .eq("title", RAG_WORKSPACE_TITLE)
+            .order("created_at", { ascending: false })
+            .limit(1)
+            .maybeSingle(),
         ]);
         artifacts = (data as ArtifactRecord[] | null) ?? [];
+        listing = listingResult;
         onboarding =
-          (profileRes.data?.onboarding as OnboardingAnswers | null) ?? null;
-        planId = (profileRes.data?.plan_id as PlanId | null) ?? "starter";
-        usage = await getChatUsageSummary(supabase, user.id, planId);
-
-        const { data: ragConversation } = await supabase
-          .from("conversations")
-          .select("id")
-          .eq("user_id", user.id)
-          .eq("title", RAG_WORKSPACE_TITLE)
-          .order("created_at", { ascending: false })
-          .limit(1)
-          .maybeSingle();
-
-        if (ragConversation?.id) {
-          const { data: rows } = await supabase
-            .from("messages")
-            .select("id, role, content")
-            .eq("conversation_id", ragConversation.id)
-            .order("created_at", { ascending: true })
-            .limit(50);
-
-          ragMessages =
-            rows
-              ?.filter((row) => row.role === "user" || row.role === "assistant")
-              .map((row) => ({
-                id: row.id,
-                role: row.role as "user" | "assistant",
-                content: row.content,
-              })) ?? [];
-        }
+          (profile?.onboarding as OnboardingAnswers | null) ?? null;
+        planId = (profile?.plan_id as PlanId | null) ?? "starter";
+        linkedinConnected = Boolean(profile?.linkedin_connected_at);
+        linkedinUrl =
+          typeof profile?.linkedin_url === "string"
+            ? profile.linkedin_url
+            : null;
 
         const assignments = assignRes.data ?? [];
         const expertIds = [...new Set(assignments.map((a) => a.expert_id))];
+        const assignmentIds = assignments.map((a) => a.id);
+        const ragConversation = ragConversationRes.data;
+
+        const [usageResult, messageRes, expertsRes, reviewMessagesRes] =
+          await Promise.all([
+            getChatUsageSummary(supabase, user.id, planId),
+            ragConversation?.id
+              ? supabase
+                  .from("messages")
+                  .select("id, role, content")
+                  .eq("conversation_id", ragConversation.id)
+                  .order("created_at", { ascending: true })
+                  .limit(50)
+              : Promise.resolve({ data: null }),
+            expertIds.length > 0
+              ? supabase
+                  .from("profiles")
+                  .select("id, email")
+                  .in("id", expertIds)
+              : Promise.resolve({ data: [] as { id: string; email: string | null }[] }),
+            assignmentIds.length > 0
+              ? supabase
+                  .from("review_messages")
+                  .select("id, assignment_id, sender_id, content, created_at")
+                  .in("assignment_id", assignmentIds)
+                  .order("created_at", { ascending: true })
+              : Promise.resolve({ data: [] as {
+                  id: string;
+                  assignment_id: string;
+                  sender_id: string;
+                  content: string;
+                  created_at: string;
+                }[] }),
+          ]);
+        usage = usageResult;
+        ragMessages =
+          messageRes.data
+            ?.filter((row) => row.role === "user" || row.role === "assistant")
+            .map((row) => ({
+              id: row.id,
+              role: row.role as "user" | "assistant",
+              content: row.content,
+            })) ?? [];
+
         const emailById = new Map<string, string | null>();
-        if (expertIds.length > 0) {
-          const { data: experts } = await supabase
-            .from("profiles")
-            .select("id, email")
-            .in("id", expertIds);
-          for (const e of experts ?? []) {
-            emailById.set(e.id, e.email);
-          }
+        for (const e of expertsRes.data ?? []) {
+          emailById.set(e.id, e.email);
         }
 
-        const assignmentIds = assignments.map((a) => a.id);
         const messagesByAssignment = new Map<
           string,
           {
@@ -126,22 +166,15 @@ export default async function DashboardPage() {
             created_at: string;
           }[]
         >();
-        if (assignmentIds.length > 0) {
-          const { data: messages } = await supabase
-            .from("review_messages")
-            .select("id, assignment_id, sender_id, content, created_at")
-            .in("assignment_id", assignmentIds)
-            .order("created_at", { ascending: true });
-          for (const m of messages ?? []) {
-            const list = messagesByAssignment.get(m.assignment_id) ?? [];
-            list.push({
-              id: m.id,
-              sender_id: m.sender_id,
-              content: m.content,
-              created_at: m.created_at,
-            });
-            messagesByAssignment.set(m.assignment_id, list);
-          }
+        for (const m of reviewMessagesRes.data ?? []) {
+          const list = messagesByAssignment.get(m.assignment_id) ?? [];
+          list.push({
+            id: m.id,
+            sender_id: m.sender_id,
+            content: m.content,
+            created_at: m.created_at,
+          });
+          messagesByAssignment.set(m.assignment_id, list);
         }
 
         review = {
@@ -172,20 +205,24 @@ export default async function DashboardPage() {
         percentageUsed: 0,
       };
       review = null;
+      listing = null;
+      linkedinConnected = false;
+      linkedinUrl = null;
     }
   }
 
   return (
-    <Suspense fallback={<DashboardSkeleton />}>
-      <DashboardShell
-        artifacts={artifacts}
-        onboarding={onboarding}
-        planId={planId}
-        ragMessages={ragMessages}
-        usage={usage}
-        review={review}
-      />
-    </Suspense>
+    <DashboardShell
+      artifacts={artifacts}
+      onboarding={onboarding}
+      planId={planId}
+      ragMessages={ragMessages}
+      usage={usage}
+      review={review}
+      listing={listing}
+      linkedinConnected={linkedinConnected}
+      linkedinUrl={linkedinUrl}
+    />
   );
 }
 

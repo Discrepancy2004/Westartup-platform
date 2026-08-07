@@ -1,4 +1,5 @@
 import { DnaCapsuleEngine } from "@/components/expert/dna-capsule-engine";
+import { getCachedUser } from "@/lib/auth/get-user";
 import { createClient } from "@/lib/supabase/server";
 import { isSupabaseConfigured } from "@/lib/utils";
 
@@ -16,9 +17,7 @@ export default async function ExpertDnaCapsulePage({
   }
 
   const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const user = await getCachedUser();
   if (!user) return null;
 
   const { data: capsules } = await supabase

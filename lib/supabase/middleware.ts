@@ -11,6 +11,12 @@ import {
   isFounderProductPath,
   type AccessSnapshot,
 } from "@/lib/auth/access";
+import {
+  clearAccessGate,
+  readAccessGate,
+  readAuthJwtClaims,
+  writeAccessGate,
+} from "@/lib/auth/access-cookie";
 import type { ExpertApplicationStatus, PlatformRole } from "@/lib/types/roles";
 
 function asRole(value: string | null | undefined): PlatformRole {
@@ -29,14 +35,134 @@ function asAppStatus(
   return null;
 }
 
+function hasSupabaseAuthCookie(request: NextRequest) {
+  return request.cookies
+    .getAll()
+    .some((cookie) => cookie.name.includes("-auth-token"));
+}
+
+function redirectToLogin(request: NextRequest, nextPath?: string) {
+  const redirectUrl = request.nextUrl.clone();
+  redirectUrl.pathname = "/login";
+  redirectUrl.search = "";
+  if (nextPath) redirectUrl.searchParams.set("next", nextPath);
+  return NextResponse.redirect(redirectUrl);
+}
+
+function applyAccessGates(
+  request: NextRequest,
+  response: NextResponse,
+  access: AccessSnapshot,
+) {
+  const pathname = request.nextUrl.pathname;
+  const home = homePathForAccess(access);
+  const onApply = pathname.startsWith("/expert/apply");
+  const onPending = pathname.startsWith("/expert/pending");
+  const onRejected = pathname.startsWith("/expert/rejected");
+
+  if (access.role === "admin") {
+    if (!isAdminPath(pathname)) {
+      const redirectUrl = request.nextUrl.clone();
+      redirectUrl.pathname = "/admin";
+      return NextResponse.redirect(redirectUrl);
+    }
+    return response;
+  }
+
+  if (access.role === "expert") {
+    if (!isExpertPath(pathname) || onPending || onRejected || onApply) {
+      const redirectUrl = request.nextUrl.clone();
+      redirectUrl.pathname = "/expert/dna";
+      return NextResponse.redirect(redirectUrl);
+    }
+    return response;
+  }
+
+  if (access.applicationStatus === "pending") {
+    if (!onPending) {
+      const redirectUrl = request.nextUrl.clone();
+      redirectUrl.pathname = "/expert/pending";
+      return NextResponse.redirect(redirectUrl);
+    }
+    return response;
+  }
+
+  if (access.applicationStatus === "rejected" && !access.founderContinuedAt) {
+    if (!onRejected) {
+      const redirectUrl = request.nextUrl.clone();
+      redirectUrl.pathname = "/expert/rejected";
+      return NextResponse.redirect(redirectUrl);
+    }
+    return response;
+  }
+
+  if (onApply) return response;
+
+  if (isAdminPath(pathname) || (isExpertPath(pathname) && !onApply)) {
+    const redirectUrl = request.nextUrl.clone();
+    redirectUrl.pathname = home;
+    return NextResponse.redirect(redirectUrl);
+  }
+
+  if (access.firstLogin && !pathname.startsWith("/onboarding")) {
+    const redirectUrl = request.nextUrl.clone();
+    redirectUrl.pathname = "/onboarding";
+    return NextResponse.redirect(redirectUrl);
+  }
+
+  if (!access.firstLogin && pathname.startsWith("/onboarding")) {
+    const redirectUrl = request.nextUrl.clone();
+    redirectUrl.pathname = "/chat";
+    return NextResponse.redirect(redirectUrl);
+  }
+
+  return response;
+}
+
 export async function updateSession(request: NextRequest) {
   let supabaseResponse = NextResponse.next({ request });
 
   const url = getSupabaseUrl();
   const key = getSupabasePublishableKey();
+  if (!url || !key) return supabaseResponse;
 
-  if (!url || !key) {
+  const pathname = request.nextUrl.pathname;
+  if (pathname === "/privacy") return supabaseResponse;
+
+  const isResetPassword = pathname.startsWith("/reset-password");
+  const isProtected =
+    isFounderProductPath(pathname) ||
+    isAdminPath(pathname) ||
+    isExpertPath(pathname);
+  const isAuthRoute =
+    pathname.startsWith("/login") ||
+    pathname.startsWith("/signup") ||
+    pathname.startsWith("/callback") ||
+    pathname.startsWith("/auth/reset");
+
+  if (!hasSupabaseAuthCookie(request)) {
+    if (isProtected) return redirectToLogin(request, pathname);
+    if (isResetPassword) {
+      const redirectUrl = request.nextUrl.clone();
+      redirectUrl.pathname = "/login";
+      redirectUrl.search = "";
+      redirectUrl.searchParams.set("error", "reset_session");
+      return NextResponse.redirect(redirectUrl);
+    }
     return supabaseResponse;
+  }
+
+  const claims = readAuthJwtClaims(request);
+  const jwtFresh = Boolean(claims && claims.expMs - Date.now() > 90_000);
+
+  if (jwtFresh && claims) {
+    if (isResetPassword || isAuthRoute) return supabaseResponse;
+    if (isProtected) {
+      const cached = readAccessGate(request, claims.sub);
+      if (cached) return applyAccessGates(request, supabaseResponse, cached);
+    } else {
+      return supabaseResponse;
+    }
   }
 
   const supabase = createServerClient(url, key, {
@@ -60,43 +186,25 @@ export async function updateSession(request: NextRequest) {
     data: { user },
   } = await supabase.auth.getUser();
 
-  const pathname = request.nextUrl.pathname;
-
-  const isAuthRoute =
-    pathname.startsWith("/login") ||
-    pathname.startsWith("/signup") ||
-    pathname.startsWith("/callback") ||
-    pathname.startsWith("/auth/reset");
-
-  const isResetPassword = pathname.startsWith("/reset-password");
-
-  const isProtected =
-    isFounderProductPath(pathname) ||
-    isAdminPath(pathname) ||
-    isExpertPath(pathname);
-
-  if (!user && isProtected) {
-    const redirectUrl = request.nextUrl.clone();
-    redirectUrl.pathname = "/login";
-    redirectUrl.searchParams.set("next", pathname);
-    return NextResponse.redirect(redirectUrl);
-  }
-
-  if (!user && isResetPassword) {
-    const redirectUrl = request.nextUrl.clone();
-    redirectUrl.pathname = "/login";
-    redirectUrl.searchParams.set("error", "reset_session");
-    return NextResponse.redirect(redirectUrl);
-  }
-
-  // Recovery session must stay on /reset-password to set a new password.
-  // Also allow /login and /signup while authenticated so "Log in" always
-  // reaches the auth form (users can switch accounts or re-auth).
-  if (user && (isResetPassword || isAuthRoute)) {
+  if (!user) {
+    clearAccessGate(supabaseResponse);
+    if (isProtected) return redirectToLogin(request, pathname);
+    if (isResetPassword) {
+      const redirectUrl = request.nextUrl.clone();
+      redirectUrl.pathname = "/login";
+      redirectUrl.search = "";
+      redirectUrl.searchParams.set("error", "reset_session");
+      return NextResponse.redirect(redirectUrl);
+    }
     return supabaseResponse;
   }
 
-  if (user && isProtected) {
+  if (isResetPassword || isAuthRoute) return supabaseResponse;
+
+  if (!isProtected) return supabaseResponse;
+
+  let access = readAccessGate(request, user.id);
+  if (!access) {
     const [profileRes, applicationRes] = await Promise.all([
       supabase
         .from("profiles")
@@ -110,88 +218,14 @@ export async function updateSession(request: NextRequest) {
         .maybeSingle(),
     ]);
 
-    const profile = profileRes.data;
-    const application = applicationRes.data;
-
-    const access: AccessSnapshot = {
-      role: asRole(profile?.role),
-      firstLogin: profile?.first_login ?? true,
-      applicationStatus: asAppStatus(application?.status),
-      founderContinuedAt: application?.founder_continued_at ?? null,
+    access = {
+      role: asRole(profileRes.data?.role),
+      firstLogin: profileRes.data?.first_login ?? true,
+      applicationStatus: asAppStatus(applicationRes.data?.status),
+      founderContinuedAt: applicationRes.data?.founder_continued_at ?? null,
     };
-
-    const home = homePathForAccess(access);
-    const onApply = pathname.startsWith("/expert/apply");
-    const onPending = pathname.startsWith("/expert/pending");
-    const onRejected = pathname.startsWith("/expert/rejected");
-
-    // Admin shell (checked before application gates)
-    if (access.role === "admin") {
-      if (!isAdminPath(pathname)) {
-        const redirectUrl = request.nextUrl.clone();
-        redirectUrl.pathname = "/admin";
-        return NextResponse.redirect(redirectUrl);
-      }
-      return supabaseResponse;
-    }
-
-    // Expert shell
-    if (access.role === "expert") {
-      if (!isExpertPath(pathname) || onPending || onRejected || onApply) {
-        const redirectUrl = request.nextUrl.clone();
-        redirectUrl.pathname = "/expert/dna";
-        return NextResponse.redirect(redirectUrl);
-      }
-      return supabaseResponse;
-    }
-
-    // Pending expert application — pending screen only (apply allowed until submitted)
-    if (access.applicationStatus === "pending") {
-      if (!onPending) {
-        const redirectUrl = request.nextUrl.clone();
-        redirectUrl.pathname = "/expert/pending";
-        return NextResponse.redirect(redirectUrl);
-      }
-      return supabaseResponse;
-    }
-
-    // Rejected — force acknowledgment unless they already continued as founder
-    if (
-      access.applicationStatus === "rejected" &&
-      !access.founderContinuedAt
-    ) {
-      if (!onRejected) {
-        const redirectUrl = request.nextUrl.clone();
-        redirectUrl.pathname = "/expert/rejected";
-        return NextResponse.redirect(redirectUrl);
-      }
-      return supabaseResponse;
-    }
-
-    // Founder — allow expert apply form before/without a pending app
-    if (onApply) {
-      return supabaseResponse;
-    }
-
-    // Founders must not enter admin/expert product shells
-    if (isAdminPath(pathname) || (isExpertPath(pathname) && !onApply)) {
-      const redirectUrl = request.nextUrl.clone();
-      redirectUrl.pathname = home;
-      return NextResponse.redirect(redirectUrl);
-    }
-
-    if (access.firstLogin && !pathname.startsWith("/onboarding")) {
-      const redirectUrl = request.nextUrl.clone();
-      redirectUrl.pathname = "/onboarding";
-      return NextResponse.redirect(redirectUrl);
-    }
-
-    if (!access.firstLogin && pathname.startsWith("/onboarding")) {
-      const redirectUrl = request.nextUrl.clone();
-      redirectUrl.pathname = "/chat";
-      return NextResponse.redirect(redirectUrl);
-    }
+    writeAccessGate(supabaseResponse, user.id, access);
   }
 
-  return supabaseResponse;
+  return applyAccessGates(request, supabaseResponse, access);
 }

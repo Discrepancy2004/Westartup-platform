@@ -5,9 +5,9 @@ import { DefaultChatTransport } from "ai";
 import { Paperclip, X } from "lucide-react";
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import dynamic from "next/dynamic";
 import { AppHeader } from "@/components/app/app-header";
 import { DashboardUpdateCard } from "@/components/chat/dashboard-update-card";
-import { MarkdownMessage } from "@/components/chat/markdown-message";
 import { UsageRing } from "@/components/chat/usage-ring";
 import { useDna } from "@/components/dna/dna-provider";
 import { DnaSuggestions, DnaWelcome } from "@/components/dna/dna-ui";
@@ -17,6 +17,13 @@ import { PLANS } from "@/lib/razorpay/plans";
 import { extractDashboardUpdate } from "@/lib/chat/dashboard-update";
 import type { ChatUsageSummary } from "@/lib/billing/usage";
 import type { PlanId } from "@/lib/razorpay/plans";
+
+const MarkdownMessage = dynamic(
+  () =>
+    import("@/components/chat/markdown-message").then(
+      (mod) => mod.MarkdownMessage,
+    ),
+);
 
 export function ChatPanel({
   bootstrap,

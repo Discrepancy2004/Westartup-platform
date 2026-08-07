@@ -1,25 +1,22 @@
 "use client";
 
 import { Lock } from "lucide-react";
+import dynamic from "next/dynamic";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useMemo } from "react";
 import { AppHeader } from "@/components/app/app-header";
-import { ArtifactCard } from "@/components/dashboard/artifact-card";
 import { DashboardEmptyState } from "@/components/dashboard/dashboard-empty-state";
-import { FinancialModelView } from "@/components/dashboard/financial-model-view";
-import { InvestorReadinessPanel } from "@/components/dashboard/investor-readiness";
 import {
   AnimatedMetric,
   FadeIn,
   MotionCard,
 } from "@/components/dashboard/motion-primitives";
-import { PitchDeckView } from "@/components/dashboard/pitch-deck-view";
-import { ProjectBoardView } from "@/components/dashboard/project-board-view";
-import { RagWorkspace } from "@/components/dashboard/rag-workspace";
-import { ValuationView } from "@/components/dashboard/valuation-view";
+import { ConnectLinkedInCard } from "@/components/auth/connect-linkedin-card";
+import { DirectoryListingCard } from "@/components/dashboard/directory-listing-card";
 import { FounderReviewPanel } from "@/components/dashboard/founder-review-panel";
 import { useDna } from "@/components/dna/dna-provider";
+import type { StartupListing } from "@/lib/directory/types";
 import { DnaWelcome } from "@/components/dna/dna-ui";
 import { hasExpertAccess, hasRagAccess, type ChatUsageSummary } from "@/lib/billing/usage";
 import { resolveKpiValues } from "@/lib/dna/kpi";
@@ -32,6 +29,62 @@ import {
 } from "@/lib/types/artifacts";
 import type { OnboardingAnswers } from "@/lib/types/onboarding";
 import { cn } from "@/lib/utils";
+
+const ProjectBoardView = dynamic(
+  () =>
+    import("@/components/dashboard/project-board-view").then(
+      (mod) => mod.ProjectBoardView,
+    ),
+  { loading: () => <ViewPlaceholder /> },
+);
+const PitchDeckView = dynamic(
+  () =>
+    import("@/components/dashboard/pitch-deck-view").then(
+      (mod) => mod.PitchDeckView,
+    ),
+  { loading: () => <ViewPlaceholder /> },
+);
+const FinancialModelView = dynamic(
+  () =>
+    import("@/components/dashboard/financial-model-view").then(
+      (mod) => mod.FinancialModelView,
+    ),
+  { loading: () => <ViewPlaceholder /> },
+);
+const ValuationView = dynamic(
+  () =>
+    import("@/components/dashboard/valuation-view").then(
+      (mod) => mod.ValuationView,
+    ),
+  { loading: () => <ViewPlaceholder /> },
+);
+const RagWorkspace = dynamic(
+  () =>
+    import("@/components/dashboard/rag-workspace").then(
+      (mod) => mod.RagWorkspace,
+    ),
+  { loading: () => <ViewPlaceholder /> },
+);
+const ArtifactCard = dynamic(
+  () =>
+    import("@/components/dashboard/artifact-card").then(
+      (mod) => mod.ArtifactCard,
+    ),
+  { loading: () => <ViewPlaceholder /> },
+);
+const InvestorReadinessPanel = dynamic(
+  () =>
+    import("@/components/dashboard/investor-readiness").then(
+      (mod) => mod.InvestorReadinessPanel,
+    ),
+  { loading: () => <ViewPlaceholder /> },
+);
+
+function ViewPlaceholder() {
+  return (
+    <div className="h-64 animate-pulse rounded-[var(--radius-lg)] border border-border bg-surface/50" />
+  );
+}
 
 const VIEWS = [
   { id: "overview", label: "Overview" },
@@ -64,12 +117,18 @@ export function DashboardShell({
   ragMessages,
   usage,
   review = null,
+  listing = null,
+  linkedinConnected = false,
+  linkedinUrl = null,
 }: {
   artifacts: ArtifactRecord[];
   onboarding?: OnboardingAnswers | null;
   planId: PlanId;
   ragMessages: { id: string; role: "user" | "assistant"; content: string }[];
   usage: ChatUsageSummary;
+  listing?: StartupListing | null;
+  linkedinConnected?: boolean;
+  linkedinUrl?: string | null;
   review?: {
     userId: string;
     pendingRequest: { id: string; note: string | null } | null;
@@ -217,6 +276,9 @@ export function DashboardShell({
               onboarding={onboarding}
               planId={planId}
               review={review}
+              listing={listing}
+              linkedinConnected={linkedinConnected}
+              linkedinUrl={linkedinUrl}
             />
           ) : null}
           {activeView === "board" ? (
@@ -250,12 +312,18 @@ function OverviewBody({
   onboarding,
   planId,
   review,
+  listing,
+  linkedinConnected,
+  linkedinUrl,
 }: {
   artifacts: ArtifactRecord[];
   byKind: Map<ArtifactKind, ArtifactRecord>;
   kpis: ReturnType<typeof resolveKpiValues>;
   onboarding?: OnboardingAnswers | null;
   planId: PlanId;
+  listing?: StartupListing | null;
+  linkedinConnected?: boolean;
+  linkedinUrl?: string | null;
   review?: {
     userId: string;
     pendingRequest: { id: string; note: string | null } | null;
@@ -287,6 +355,15 @@ function OverviewBody({
           </p>
         </div>
       </FadeIn>
+
+      <div className="mx-auto mt-8 max-w-2xl space-y-4">
+        <DirectoryListingCard listing={listing ?? null} />
+        <ConnectLinkedInCard
+          connected={Boolean(linkedinConnected)}
+          returnTo="/dashboard"
+          linkedinUrl={linkedinUrl}
+        />
+      </div>
 
       {review ? (
         <div className="mx-auto mt-8 max-w-2xl text-left">

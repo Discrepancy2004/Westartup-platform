@@ -6,7 +6,11 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { submitExpertApplication } from "@/app/(expert)/actions";
 
-export function ExpertApplyForm() {
+export function ExpertApplyForm({
+  defaultFullName = "",
+}: {
+  defaultFullName?: string;
+}) {
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
 
@@ -32,7 +36,13 @@ export function ExpertApplyForm() {
 
       <div className="space-y-1.5">
         <Label htmlFor="full_name">Full name</Label>
-        <Input id="full_name" name="full_name" required disabled={pending} />
+        <Input
+          id="full_name"
+          name="full_name"
+          required
+          disabled={pending}
+          defaultValue={defaultFullName}
+        />
       </div>
 
       <div className="space-y-1.5">

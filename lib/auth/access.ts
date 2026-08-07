@@ -29,6 +29,7 @@ export function isFounderProductPath(pathname: string): boolean {
     pathname.startsWith("/chat") ||
     pathname.startsWith("/dashboard") ||
     pathname.startsWith("/billing") ||
+    pathname.startsWith("/experts") ||
     pathname.startsWith("/onboarding")
   );
 }

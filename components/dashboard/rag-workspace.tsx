@@ -5,9 +5,13 @@ import { DefaultChatTransport } from "ai";
 import { Lock, Paperclip, X } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useMemo, useRef, useState } from "react";
+import dynamic from "next/dynamic";
 import { UsageRing } from "@/components/chat/usage-ring";
-import { MarkdownMessage } from "@/components/chat/markdown-message";
 import { Button } from "@/components/ui/button";
+
+const MarkdownMessage = dynamic(() =>
+  import("@/components/chat/markdown-message").then((mod) => mod.MarkdownMessage),
+);
 import { Textarea } from "@/components/ui/textarea";
 import type { ChatUsageSummary } from "@/lib/billing/usage";
 import { hasRagAccess } from "@/lib/billing/usage";

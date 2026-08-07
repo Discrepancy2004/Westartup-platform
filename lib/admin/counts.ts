@@ -1,3 +1,4 @@
+import { cache } from "react";
 import { createClient } from "@/lib/supabase/server";
 
 export type AdminNavCounts = {
@@ -8,7 +9,7 @@ export type AdminNavCounts = {
   founderCount: number;
 };
 
-export async function getAdminNavCounts(): Promise<AdminNavCounts> {
+export const getAdminNavCounts = cache(async (): Promise<AdminNavCounts> => {
   const empty: AdminNavCounts = {
     pendingApplications: 0,
     pendingReviews: 0,
@@ -58,4 +59,4 @@ export async function getAdminNavCounts(): Promise<AdminNavCounts> {
   } catch {
     return empty;
   }
-}
+});

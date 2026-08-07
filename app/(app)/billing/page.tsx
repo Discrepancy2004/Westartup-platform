@@ -1,6 +1,7 @@
 import { AppHeader } from "@/components/app/app-header";
 import { BillingPanel } from "@/components/billing/billing-panel";
-import { createClient } from "@/lib/supabase/server";
+import { getCachedProfile } from "@/lib/auth/get-profile";
+import { getCachedUser } from "@/lib/auth/get-user";
 import { isSupabaseConfigured } from "@/lib/utils";
 import type { BillingProfile } from "@/lib/types/billing";
 import type { PlanId } from "@/lib/razorpay/plans";
@@ -16,18 +17,9 @@ export default async function BillingPage() {
 
   if (isSupabaseConfigured()) {
     try {
-      const supabase = await createClient();
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
+      const user = await getCachedUser();
       if (user) {
-        const { data } = await supabase
-          .from("profiles")
-          .select(
-            "plan_id, subscription_status, razorpay_subscription_id, current_period_end",
-          )
-          .eq("id", user.id)
-          .maybeSingle();
+        const data = await getCachedProfile(user.id);
 
         if (data) {
           profile = {

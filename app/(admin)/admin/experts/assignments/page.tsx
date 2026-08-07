@@ -63,21 +63,9 @@ export default async function AdminAssignmentsPage() {
     (assignments ?? []).map((a) => a.founder_id),
   );
 
-  const founderIdsForEmail = [
-    ...new Set([
-      ...(assignments ?? []).map((a) => a.founder_id),
-      ...(pendingRequests ?? []).map((r) => r.founder_id),
-    ]),
-  ];
   const emailById = new Map<string, string | null>();
-  if (founderIdsForEmail.length > 0) {
-    const { data: profiles } = await supabase
-      .from("profiles")
-      .select("id, email")
-      .in("id", founderIdsForEmail);
-    for (const p of profiles ?? []) {
-      emailById.set(p.id, p.email);
-    }
+  for (const founder of founders ?? []) {
+    emailById.set(founder.id, founder.email);
   }
 
   const expertOptions = (experts ?? []).map((e) => ({

@@ -1,5 +1,5 @@
 import { OnboardingFlow } from "@/components/onboarding/onboarding-flow";
-import { createClient } from "@/lib/supabase/server";
+import { getCachedUser } from "@/lib/auth/get-user";
 import { isSupabaseConfigured } from "@/lib/utils";
 
 export default async function OnboardingPage() {
@@ -7,10 +7,7 @@ export default async function OnboardingPage() {
 
   if (isSupabaseConfigured()) {
     try {
-      const supabase = await createClient();
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
+      const user = await getCachedUser();
       userEmail = user?.email ?? null;
     } catch {
       userEmail = null;

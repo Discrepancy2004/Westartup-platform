@@ -19,12 +19,17 @@ export function SiteFooter() {
           </p>
           <ul className="mt-4 space-y-2.5 text-sm text-[var(--mkt-muted)]">
             <li>
-              <a href="#product" className="hover:text-[var(--mkt-ink)]">
+              <a href="/#product" className="hover:text-[var(--mkt-ink)]">
                 Showcase
               </a>
             </li>
             <li>
-              <a href="#positioning" className="hover:text-[var(--mkt-ink)]">
+              <Link href="/companies" className="hover:text-[var(--mkt-ink)]">
+                Directory
+              </Link>
+            </li>
+            <li>
+              <a href="/#positioning" className="hover:text-[var(--mkt-ink)]">
                 Approach
               </a>
             </li>
@@ -42,12 +47,12 @@ export function SiteFooter() {
           </p>
           <ul className="mt-4 space-y-2.5 text-sm text-[var(--mkt-muted)]">
             <li>
-              <a href="#audience" className="hover:text-[var(--mkt-ink)]">
+              <a href="/#audience" className="hover:text-[var(--mkt-ink)]">
                 Who it is for
               </a>
             </li>
             <li>
-              <a href="#proof" className="hover:text-[var(--mkt-ink)]">
+              <a href="/#proof" className="hover:text-[var(--mkt-ink)]">
                 Proof
               </a>
             </li>
@@ -60,13 +65,18 @@ export function SiteFooter() {
           </p>
           <ul className="mt-4 space-y-2.5 text-sm text-[var(--mkt-muted)]">
             <li>
-              <a href="#resources" className="hover:text-[var(--mkt-ink)]">
+              <a href="/#resources" className="hover:text-[var(--mkt-ink)]">
                 Guides
               </a>
             </li>
             <li>
               <Link href="/login" className="hover:text-[var(--mkt-ink)]">
                 Log in
+              </Link>
+            </li>
+            <li>
+              <Link href="/privacy" className="hover:text-[var(--mkt-ink)]">
+                Privacy Policy
               </Link>
             </li>
           </ul>
@@ -79,7 +89,9 @@ export function SiteFooter() {
             © {new Date().getFullYear()} WeStartup. Pressure-tested ideas, not
             applause.
           </p>
-          <p>Built for founders preparing for the room.</p>
+          <Link href="/privacy" className="hover:text-[var(--mkt-muted)]">
+            Privacy Policy
+          </Link>
         </div>
       </div>
     </footer>

@@ -1,4 +1,5 @@
 import { DnaWelcomeScreen } from "@/components/expert/dna-welcome-screen";
+import { getCachedUser } from "@/lib/auth/get-user";
 import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 import { isSupabaseConfigured } from "@/lib/utils";
@@ -11,9 +12,7 @@ export default async function ExpertDnaWelcomePage() {
   }
 
   const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const user = await getCachedUser();
   if (!user) return null;
 
   const { data: profile } = await supabase

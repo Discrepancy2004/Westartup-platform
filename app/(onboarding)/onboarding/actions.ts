@@ -1,6 +1,7 @@
 "use server";
 
 import { resolveCompanionPersona } from "@/lib/companion/resolve";
+import { publishStartupListing } from "@/lib/directory/publish";
 import { detectStartupDna } from "@/lib/dna/detect";
 import { createServiceClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
@@ -63,6 +64,17 @@ export async function completeOnboarding(raw: OnboardingAnswers) {
             (err instanceof Error ? err.message : "Could not save onboarding."),
         };
       }
+    }
+
+    try {
+      await publishStartupListing({
+        founderId: user.id,
+        onboarding: parsed.data,
+        dna: startupDna,
+        verifiedAt: payload.onboarding_completed_at,
+      });
+    } catch {
+      // Directory publish is non-blocking; listing can be backfilled later.
     }
 
     return { ok: true as const };

@@ -1,5 +1,6 @@
 import { redirect } from "next/navigation";
 import { DnaStudioDashboard } from "@/components/expert/dna-studio-dashboard";
+import { getCachedUser } from "@/lib/auth/get-user";
 import {
   DNA_STARTER_QUESTIONS,
   type DnaCapsuleCategory,
@@ -15,25 +16,24 @@ export default async function ExpertDnaPage() {
   }
 
   const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const user = await getCachedUser();
   if (!user) return null;
 
-  const { data: profile } = await supabase
-    .from("profiles")
-    .select("dna_welcome_seen_at")
-    .eq("id", user.id)
-    .maybeSingle();
+  const [{ data: profile }, { data: capsules }] = await Promise.all([
+    supabase
+      .from("profiles")
+      .select("dna_welcome_seen_at")
+      .eq("id", user.id)
+      .maybeSingle(),
+    supabase
+      .from("expert_dna_capsules")
+      .select("question_id, category")
+      .eq("expert_id", user.id),
+  ]);
 
   if (!profile?.dna_welcome_seen_at) {
     redirect("/expert/dna/welcome");
   }
-
-  const { data: capsules } = await supabase
-    .from("expert_dna_capsules")
-    .select("question_id, category")
-    .eq("expert_id", user.id);
 
   const answeredIds = new Set((capsules ?? []).map((c) => c.question_id));
   const categoryCounts: Partial<Record<DnaCapsuleCategory, number>> = {};
